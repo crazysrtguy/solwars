@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>SolWars: Galactic Trading</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@900,700,500,400&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.cdnfonts.com/css/star-wars">
+  <link rel="stylesheet" href="styles.css">
+  <!-- Solana Web3.js -->
+  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+</head>
+<body>
+  <!-- Star Wars Intro -->
+  <div class="intro-container" id="introContainer">
+    <div class="intro-controls">
+      <button id="skipIntro" class="btn btn-outline">Skip Intro</button>
+      <button id="toggleAudio" class="btn btn-outline"><i class="fas fa-volume-up"></i></button>
+    </div>
+    <div class="stars"></div>
+    <div class="star-wars-logo" id="solWarsLogo">
+      <img src="solwars.png" alt="Sol Wars Logo" id="logoImage">
+      <div class="play-prompt">Click to Play Music</div>
+    </div>
+    <div class="star-wars-intro">
+      <!-- Completely separate title with its own animation -->
+      <div class="title-container">
+        <div class="title">
+          <p>Episode I</p>
+          <h1>SOLWARS: GALACTIC TRADING</h1>
+        </div>
+      </div>
+
+      <!-- Separate crawl text -->
+      <div class="crawl-container">
+        <div class="crawl">
+          <p>The galaxy is in turmoil. As the GALACTIC EMPIRE and REBEL ALLIANCE battle for control, a new opportunity has emerged for daring traders willing to risk everything in the shadows of war.</p>
+          <p>In the wake of the Clone Wars, the economy of the galaxy has been fractured. The once-stable Republic credit has been replaced by Imperial currency.</p>
+          <p>Valuable resources like KYBER crystals, BANTHA herds, and WAMPA pelts have become the true measure of wealth in these uncertain times.</p>
+          <p>Across the star systems, from the bustling metropolis of CORUSCANT to the desert wastes of TATOOINE, traders seek their fortune.</p>
+          <p>From the frozen plains of HOTH to the gas mines of BESPIN, the Empire's iron grip has created black markets and price disparities that a clever merchant can exploit.</p>
+          <p>You, a lone trader with a small ship and limited credits, must navigate this dangerous economy. Starting with a loan from the notorious HUTT CARTEL, you have 30 cycles to establish yourself as a force in galactic commerce.</p>
+          <p>Your strategy is simple but perilous: Buy valuable tokens where they're abundant and cheap, then travel to systems where they're scarce and in demand.</p>
+          <p>But beware - each journey consumes precious time, and the Empire's deadline draws ever closer.</p>
+          <p>Imperial patrols may confiscate contraband, and market prices fluctuate wildly with galactic events.</p>
+          <p>Unexpected events can turn fortune to ruin in an instant. The HUTTS expect their loans to be repaid, and they are not known for their patience or mercy.</p>
+          <p>Your goal: Become the wealthiest trader in the galaxy before the Empire's deadline expires. Amass credits, invest wisely, repay your debts, and rise to the top of the galactic leaderboard.</p>
+          <p>The stars await, trader. Your destiny is in your hands. May the profits be with you...</p>
+        </div>
+      </div>
+    </div>
+    <audio id="starWarsTheme" preload="auto">
+      <source src="https://ia800905.us.archive.org/19/items/StarWars_20180709/Star%20Wars.mp3" type="audio/mpeg">
+      Your browser does not support the audio element.
+    </audio>
+  </div>
+
+  <!-- Main Game UI -->
+  <div class="game-container" id="gameContainer">
+    <div class="container">
+      <header>
+        <div class="logo">
+          <h1>SolWars</h1>
+          <span>Galactic Trading</span>
+        </div>
+        <div class="header-actions">
+          <div class="tournament-counter">Imperial Deadline: <span id="cyclesLeftDisplay">18</span> cycles left</div>
+          <div id="userInfo" class="user-info" style="display: none;"></div>
+          <button id="authButton" class="btn btn-primary">Connect Wallet</button>
+          <button id="leaderboardBtn" class="btn btn-outline">Leaderboard</button>
+          <button id="newGameBtn" class="btn btn-accent">New Game</button>
+          <button class="btn btn-sound" id="soundToggleBtn">
+            <i class="fas fa-volume-up" id="soundIcon"></i>
+          </button>
+        </div>
+      </header>
+
+      <div class="status-bar">
+        <div class="location-name" id="locationDisplay">Coruscant</div>
+        <div class="day-counter">Cycle <span id="dayDisplay">5</span>/<span id="maxDaysDisplay">30</span></div>
+        <div class="status-item">
+          <span>Credits</span>
+          <span id="walletDisplay">1,423.55</span>
+        </div>
+        <div class="status-item">
+          <span>Debt</span>
+          <span id="debtDisplay">3,500.00</span>
+        </div>
+        <div class="status-item">
+          <span>Net Worth</span>
+          <span id="netWorthDisplay">2,784.92</span>
+        </div>
+        <div class="status-item">
+          <span>Rank</span>
+          <span id="rankDisplay">#17</span>
+        </div>
+      </div>
+
+      <div class="main-layout">
+        <!-- Left Sidebar -->
+        <div class="left-sidebar">
+          <div class="card">
+            <h2>
+              <i class="fas fa-globe"></i>
+              Star Systems
+            </h2>
+            <ul class="locations-list" id="locationsList">
+              <li class="location-item active">
+                <div class="location-info">
+                  <i class="fas fa-city"></i> Coruscant
+                </div>
+                <span class="location-label">Current</span>
+              </li>
+              <li class="location-item">
+                <div class="location-info">
+                  <i class="fas fa-mountain"></i> Tatooine
+                </div>
+                <div class="badge badge-success">+15% KYBER</div>
+              </li>
+              <li class="location-item">
+                <div class="location-info">
+                  <i class="fas fa-tree"></i> Endor
+                </div>
+                <div class="badge badge-info">+12% BANTHA</div>
+              </li>
+              <li class="location-item">
+                <div class="location-info">
+                  <i class="fas fa-snowflake"></i> Hoth
+                </div>
+                <div class="badge badge-warning">+8% WAMPA</div>
+              </li>
+              <li class="location-item">
+                <div class="location-info">
+                  <i class="fas fa-cloud"></i> Bespin
+                </div>
+                <div class="badge badge-danger">High Risk</div>
+              </li>
+              <li class="location-item">
+                <div class="location-info">
+                  <i class="fas fa-water"></i> Kamino
+                </div>
+                <div class="badge badge-warning">Clone Hub</div>
+              </li>
+            </ul>
+
+            <div class="location-details">
+              <div class="location-advantage">
+                <i class="fas fa-info-circle"></i> Coruscant is the central hub with standard pricing.
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>
+              <i class="fas fa-chart-pie"></i>
+              My Inventory
+            </h2>
+            <div id="inventoryList">
+              <!-- KYBER -->
+              <div class="inventory-item" data-token="KYBER">
+                <div class="coin-icon KYBER">KB</div>
+                <div class="inventory-item-info">
+                  <div class="inventory-item-name">KYBER</div>
+                  <div class="inventory-item-details">
+                    <span>1,250,000 crystals</span>
+                    <span class="profit-positive">+15.4%</span>
+                  </div>
+                </div>
+                <div class="inventory-item-actions">
+                  <button class="btn btn-outline btn-small sell-btn" data-token="KYBER">Sell</button>
+                </div>
+              </div>
+
+              <!-- WAMPA -->
+              <div class="inventory-item" data-token="WAMPA">
+                <div class="coin-icon WAMPA">WP</div>
+                <div class="inventory-item-info">
+                  <div class="inventory-item-name">WAMPA</div>
+                  <div class="inventory-item-details">
+                    <span>520 pelts</span>
+                    <span class="profit-negative">-3.8%</span>
+                  </div>
+                </div>
+                <div class="inventory-item-actions">
+                  <button class="btn btn-outline btn-small sell-btn" data-token="WAMPA">Sell</button>
+                </div>
+              </div>
+
+              <!-- TROOPER -->
+              <div class="inventory-item" data-token="TROOPER">
+                <div class="coin-icon TROOPER">TR</div>
+                <div class="inventory-item-info">
+                  <div class="inventory-item-name">TROOPER</div>
+                  <div class="inventory-item-details">
+                    <span>4,800 units</span>
+                    <span class="profit-positive">+1.2%</span>
+                  </div>
+                </div>
+                <div class="inventory-item-actions">
+                  <button class="btn btn-outline btn-small sell-btn" data-token="TROOPER">Sell</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="wallet-capacity">
+              <span>Cargo space: 25/100</span>
+              <div class="progress-container">
+                <div class="progress-bar" style="width: 25%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="content-area">
+          <div class="card">
+            <div class="grid-header">
+              <h2>
+                <i class="fas fa-chart-line"></i>
+                Galactic Market
+              </h2>
+              <div class="grid-header-actions">
+                <div class="market-search">
+                  <i class="fas fa-search"></i>
+                  <input type="text" placeholder="Search tokens...">
+                </div>
+
+                <div class="dropdown" id="sortDropdown">
+                  <div class="dropdown-toggle">
+                    <span>Sort by: Price</span>
+                    <i class="fas fa-chevron-down"></i>
+                  </div>
+                  <div class="dropdown-menu">
+                    <div class="dropdown-item">Sort by: Name</div>
+                    <div class="dropdown-item">Sort by: Price</div>
+                    <div class="dropdown-item">Sort by: 24h Change</div>
+                    <div class="dropdown-item">Sort by: Volume</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="market-tabs">
+              <button class="market-tab active">All Tokens</button>
+              <button class="market-tab">My Holdings</button>
+              <button class="market-tab">Hot on <span class="location-name-tab"></span></button>
+              <button class="market-tab">Trending</button>
+            </div>
+
+            <div class="market-list" id="marketList">
+              <!-- KYBER -->
+              <div class="market-item" data-token="KYBER">
+                <div class="coin-icon KYBER">KB</div>
+                <div class="market-item-info">
+                  <div class="market-item-name">
+                    KYBER
+                    <span class="market-item-trend trend-up">
+                      <i class="fas fa-arrow-up"></i> 15.4%
+                    </span>
+                  </div>
+                  <div class="market-item-price">0.00000234 CR per crystal</div>
+                </div>
+                <div class="market-item-actions">
+                  <button class="btn btn-secondary btn-small buy-btn" data-token="KYBER">Buy</button>
+                  <button class="btn btn-danger btn-small sell-btn" data-token="KYBER">Sell</button>
+                </div>
+              </div>
+
+              <!-- BANTHA -->
+              <div class="market-item" data-token="BANTHA">
+                <div class="coin-icon BANTHA">BT</div>
+                <div class="market-item-info">
+                  <div class="market-item-name">
+                    BANTHA
+                    <span class="market-item-trend trend-down">
+                      <i class="fas fa-arrow-down"></i> 3.2%
+                    </span>
+                  </div>
+                  <div class="market-item-price">0.00721 CR per herd</div>
+                </div>
+                <div class="market-item-actions">
+                  <button class="btn btn-secondary btn-small buy-btn" data-token="BANTHA">Buy</button>
+                  <button class="btn btn-danger btn-small sell-btn" data-token="BANTHA">Sell</button>
+                </div>
+              </div>
+
+              <!-- WAMPA -->
+              <div class="market-item" data-token="WAMPA">
+                <div class="coin-icon WAMPA">WP</div>
+                <div class="market-item-info">
+                  <div class="market-item-name">
+                    WAMPA
+                    <span class="market-item-trend trend-down">
+                      <i class="fas fa-arrow-down"></i> 3.8%
+                    </span>
+                  </div>
+                  <div class="market-item-price">0.00452 CR per pelt</div>
+                </div>
+                <div class="market-item-actions">
+                  <button class="btn btn-secondary btn-small buy-btn" data-token="WAMPA">Buy</button>
+                  <button class="btn btn-danger btn-small sell-btn" data-token="WAMPA">Sell</button>
+                </div>
+              </div>
+
+              <!-- TROOPER -->
+              <div class="market-item" data-token="TROOPER">
+                <div class="coin-icon TROOPER">TR</div>
+                <div class="market-item-info">
+                  <div class="market-item-name">
+                    TROOPER
+                    <span class="market-item-trend trend-up">
+                      <i class="fas fa-arrow-up"></i> 1.2%
+                    </span>
+                  </div>
+                  <div class="market-item-price">0.000098 CR per unit</div>
+                </div>
+                <div class="market-item-actions">
+                  <button class="btn btn-secondary btn-small buy-btn" data-token="TROOPER">Buy</button>
+                  <button class="btn btn-danger btn-small sell-btn" data-token="TROOPER">Sell</button>
+                </div>
+              </div>
+
+              <!-- JAWA -->
+              <div class="market-item" data-token="JAWA">
+                <div class="coin-icon JAWA">JW</div>
+                <div class="market-item-info">
+                  <div class="market-item-name">
+                    JAWA
+                    <span class="market-item-trend trend-neutral">
+                      <i class="fas fa-minus"></i> 0.1%
+                    </span>
+                  </div>
+                  <div class="market-item-price">0.00183 CR per trader</div>
+                </div>
+                <div class="market-item-actions">
+                  <button class="btn btn-secondary btn-small buy-btn" data-token="JAWA">Buy</button>
+                  <button class="btn btn-danger btn-small sell-btn" data-token="JAWA">Sell</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Sidebar -->
+        <div class="right-sidebar">
+          <div class="card">
+            <h2>
+              <i class="fas fa-trophy"></i>
+              Imperial Ranking
+            </h2>
+            <div class="tournament-info">
+              <div>
+                <div class="tournament-name">Galactic Trade Wars #12</div>
+                <div class="tournament-time">Ends in 1 day, 8 hours</div>
+              </div>
+              <div class="tournament-rank">#17</div>
+            </div>
+
+            <div class="portfolio-section">
+              <div class="portfolio-item">
+                <div class="portfolio-token">
+                  <i class="fas fa-wallet"></i>
+                  <div style="margin-left: 10px;">
+                    <div class="portfolio-token-name">Total Value</div>
+                  </div>
+                </div>
+                <div class="portfolio-value">
+                  <div class="portfolio-value-sol">1,423.55 CR</div>
+                </div>
+              </div>
+
+              <div class="portfolio-item">
+                <div class="portfolio-token">
+                  <i class="fas fa-coins"></i>
+                  <div style="margin-left: 10px;">
+                    <div class="portfolio-token-name">Tokens Value</div>
+                  </div>
+                </div>
+                <div class="portfolio-value">
+                  <div class="portfolio-value-sol">5.75 CR</div>
+                </div>
+              </div>
+
+              <div class="portfolio-item">
+                <div class="portfolio-token">
+                  <i class="fas fa-chart-line"></i>
+                  <div style="margin-left: 10px;">
+                    <div class="portfolio-token-name">Profit/Loss</div>
+                  </div>
+                </div>
+                <div class="portfolio-value">
+                  <div class="portfolio-value-sol profit-positive">+784.92 CR</div>
+                </div>
+              </div>
+            </div>
+
+            <button class="btn btn-primary btn-block" style="margin-top: 10px;">View Leaderboard</button>
+          </div>
+
+          <div class="card">
+            <h2>
+              <i class="fas fa-money-bill-wave"></i>
+              Hutt Loans
+            </h2>
+            <div class="debt-section">
+              <p>Manage your debt with the Hutts:</p>
+              <div class="transaction-row">
+                <div class="transaction-input">
+                  <input type="number" id="debtAmount" placeholder="Amount" min="0">
+                </div>
+              </div>
+              <div class="debt-controls">
+                <button id="repayBtn" class="btn btn-secondary btn-small btn-block">Repay</button>
+                <button id="borrowBtn" class="btn btn-danger btn-small btn-block">Borrow</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>
+              <i class="fas fa-bell"></i>
+              Events
+            </h2>
+            <div class="events-list" id="eventsList">
+              <div class="event-item highlight">
+                Cycle 5: Imperial forces seized WAMPA shipments! Price dropped temporarily.
+              </div>
+              <div class="event-item">
+                Cycle 4: KYBER jumped 12% in the last few hours!
+              </div>
+              <div class="event-item">
+                Cycle 3: You traveled to Tatooine and sold KYBER for a profit.
+              </div>
+              <div class="event-item">
+                Cycle 2: You purchased 1,250,000 KYBER crystals.
+              </div>
+              <div class="event-item">
+                Cycle 1: Welcome to SolWars: Galactic Trading!
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>
+              <i class="fas fa-lightbulb"></i>
+              Trading Tips
+            </h2>
+            <div class="event-item">
+              <strong>Price Advantage:</strong> KYBER is selling for 15% more on Tatooine! Consider traveling there to sell.
+            </div>
+            <div class="event-item">
+              <strong>Buy Low:</strong> BANTHA prices are down 3.2% today. Could be a good time to buy.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Travel Confirmation Modal -->
+  <div class="modal-overlay" id="travelModal">
+    <div class="modal">
+      <button class="close-modal" id="closeTravelModal">&times;</button>
+      <h2>Travel to Tatooine?</h2>
+      <p>Traveling to Tatooine will advance the game by 1 cycle. Your KYBER crystals will sell for 15% more in this location.</p>
+      <div class="coin-projection" style="margin-bottom: 20px;">
+        <div class="projection-header">Profit Projection</div>
+        <div class="projection-item">
+          <span>Current KYBER Value:</span>
+          <span>2.93 CR</span>
+        </div>
+        <div class="projection-item">
+          <span>Value on Tatooine:</span>
+          <span class="profit-positive">3.36 CR (+0.43)</span>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" id="cancelTravelBtn">Stay Here</button>
+        <button class="btn btn-primary" id="confirmTravelBtn"><i class="fas fa-rocket"></i> Launch</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transaction Confirmation Modal -->
+  <div class="modal-overlay" id="transactionModal">
+    <div class="modal">
+      <button class="close-modal" id="closeTransactionModal">&times;</button>
+      <h2>Buy/Sell Token</h2>
+      <p>Enter transaction details</p>
+
+      <div class="coin-projection" id="txProjection" style="margin: 20px 0;">
+        <!-- This will be populated dynamically -->
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-outline" id="cancelTxBtn">Cancel</button>
+        <button class="btn btn-primary" id="confirmTxBtn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaderboard Modal -->
+  <div class="modal-overlay" id="leaderboardModal">
+    <div class="modal">
+      <button class="close-modal" id="closeLeaderboardModal">&times;</button>
+      <h2>Galactic Leaderboard</h2>
+      <p>The galaxy's most successful traders</p>
+
+      <div class="leaderboard-container">
+        <div class="leaderboard-header">
+          <div class="leaderboard-rank">Rank</div>
+          <div class="leaderboard-user">Trader</div>
+          <div class="leaderboard-score">Net Worth</div>
+        </div>
+        <div id="leaderboardList" class="leaderboard-list">
+          <!-- Will be populated dynamically -->
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="refreshLeaderboardBtn">Refresh</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Event Modal -->
+  <div class="modal-overlay" id="eventModal">
+    <div class="modal">
+      <button class="close-modal" id="closeEventModal">&times;</button>
+      <h2>Galactic Event!</h2>
+      <p id="eventMessage">Imperial forces have seized WAMPA shipments! The price has dropped by 30% temporarily.</p>
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="eventOkBtn">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="notification" id="notification"></div>
+
+  <!-- Space Travel Animation Overlay -->
+  <div class="space-travel-overlay" id="spaceTravelOverlay">
+    <div class="space-travel-container" id="spaceTravelContainer">
+      <!-- Video-based travel animation -->
+      <video id="travelVideo" class="travel-video" playsinline>
+        <source src="travel.mp4" type="video/mp4">
+        Your browser does not support the video tag.
+      </video>
+      <div class="destination-text" id="destinationText">Traveling to <span id="destinationName">Tatooine</span></div>
+
+      <!-- Video volume control -->
+      <div class="video-controls">
+        <button id="videoVolumeBtn" class="video-volume-btn">
+          <i class="fas fa-volume-up"></i>
+        </button>
+        <div class="volume-slider-container">
+          <input type="range" min="0" max="100" value="70" class="volume-slider" id="videoVolumeSlider">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="auth.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
