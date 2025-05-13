@@ -30,6 +30,8 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   position: relative;
+  max-width: 100vw;
+  touch-action: manipulation;
 }
 
 /* Star Wars Intro */
@@ -268,6 +270,10 @@ body {
   width: 100vw;
   max-width: 100%;
   overflow-x: hidden;
+  height: 100vh;
+  position: relative;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .game-container.fade-in {
@@ -289,6 +295,8 @@ header {
   padding: 20px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 15px;
 }
 
 .logo {
@@ -567,8 +575,9 @@ header {
   grid-template-columns: 16rem 1fr 22rem;
   gap: 20px;
   width: 100%;
-  max-width: 100vw;
+  max-width: 100%;
   overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 .card {
@@ -672,12 +681,27 @@ header {
 @media screen and (max-width: 768px) {
   .main-layout {
     grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+
+  .left-sidebar, .content-area, .right-sidebar {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
   .status-bar {
     flex-wrap: wrap;
     gap: 12px;
     padding: 10px;
+    overflow-x: hidden;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .status-item {
@@ -716,6 +740,14 @@ header {
       opacity: 1;
     }
   }
+
+  /* Improve card layout on mobile */
+  .card {
+    padding: 15px;
+    margin-bottom: 15px;
+    width: 100%;
+    box-sizing: border-box;
+  }
 }
 
 /* Modal Styles */
@@ -739,12 +771,22 @@ header {
 .modal {
   background: var(--darker);
   border-radius: 16px;
-  padding: 30px;
+  padding: 20px;
   width: 90%;
   max-width: 500px;
   position: relative;
   box-shadow: 0 0 30px rgba(255, 232, 31, 0.3);
   border: 1px solid rgba(255, 232, 31, 0.2);
+  max-height: 90vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 480px) {
+  .modal {
+    width: 95%;
+    padding: 15px;
+  }
 }
 
 .modal h2 {
@@ -762,6 +804,18 @@ header {
   display: flex;
   gap: 10px;
   justify-content: flex-end;
+}
+
+@media (max-width: 480px) {
+  .modal-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .modal-actions .btn {
+    width: 100%;
+    min-height: 44px; /* Better touch target */
+  }
 }
 
 .close-modal {
@@ -940,6 +994,20 @@ header {
   list-style: none;
   margin: 0;
   padding: 0;
+  overflow-x: hidden;
+}
+
+@media (max-width: 480px) {
+  .locations-list {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 10px;
+    margin: 0 -10px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
 }
 
 .location-item {
@@ -953,6 +1021,15 @@ header {
   border: 1px solid rgba(255, 232, 31, 0.1);
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+@media (max-width: 480px) {
+  .location-item {
+    flex: 0 0 80%;
+    min-width: 250px;
+    margin-right: 10px;
+    margin-bottom: 0;
+  }
 }
 
 .location-item:hover:not(.active) {
@@ -1055,6 +1132,7 @@ header {
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(255, 232, 31, 0.1);
   transition: all 0.2s ease;
+  flex-wrap: wrap;
 }
 
 .market-item:hover {
@@ -1066,6 +1144,7 @@ header {
 
 .market-item-info {
   flex: 1;
+  min-width: 0; /* Allow text to wrap */
 }
 
 .market-item-name {
@@ -1074,11 +1153,14 @@ header {
   margin-bottom: 4px;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  word-break: break-word;
 }
 
 .market-item-price {
   font-size: 14px;
   color: var(--light-gray);
+  word-break: break-word;
 }
 
 .market-item-owned {
@@ -1086,6 +1168,7 @@ header {
   color: var(--primary);
   margin-top: 2px;
   font-weight: 600;
+  word-break: break-word;
 }
 
 .empty-state {
@@ -1098,6 +1181,20 @@ header {
 .market-item-actions {
   display: flex;
   gap: 8px;
+  margin-top: 8px;
+  width: 100%;
+  justify-content: flex-end;
+}
+
+@media (max-width: 480px) {
+  .market-item-actions {
+    justify-content: space-between;
+  }
+
+  .market-item-actions .btn {
+    flex: 1;
+    min-height: 44px; /* Better touch target */
+  }
 }
 
 .market-item-trend {
@@ -1123,12 +1220,27 @@ header {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 15px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .grid-header-actions {
   display: flex;
   gap: 10px;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 480px) {
+  .grid-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .grid-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
 }
 
 .market-search {
@@ -1144,6 +1256,7 @@ header {
   font-size: 14px;
   width: 200px;
   transition: all 0.2s ease;
+  min-height: 40px; /* Better touch target */
 }
 
 .market-search input:focus {
@@ -1151,6 +1264,16 @@ header {
   border-color: var(--primary);
   box-shadow: 0 0 0 2px rgba(255, 232, 31, 0.2);
   width: 250px;
+}
+
+@media (max-width: 480px) {
+  .market-search {
+    width: 100%;
+  }
+
+  .market-search input, .market-search input:focus {
+    width: 100%;
+  }
 }
 
 .market-search i {
@@ -1199,6 +1322,25 @@ header {
   z-index: 10;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
   display: none;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+@media (max-width: 480px) {
+  .dropdown {
+    width: 100%;
+  }
+
+  .dropdown-toggle {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .dropdown-menu {
+    width: 100%;
+    left: 0;
+    right: 0;
+  }
 }
 
 .dropdown-menu.active {
@@ -1226,16 +1368,19 @@ header {
   margin-bottom: 8px;
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(255, 232, 31, 0.1);
+  flex-wrap: wrap;
 }
 
 .inventory-item-info {
   flex: 1;
+  min-width: 0; /* Allow text to wrap */
 }
 
 .inventory-item-name {
   font-weight: 600;
   font-size: 14px;
   margin-bottom: 2px;
+  word-break: break-word;
 }
 
 .inventory-item-details {
@@ -1243,11 +1388,27 @@ header {
   color: var(--light-gray);
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+  word-break: break-word;
 }
 
 .inventory-item-actions {
   display: flex;
   gap: 6px;
+  margin-top: 8px;
+  width: 100%;
+  justify-content: flex-end;
+}
+
+@media (max-width: 480px) {
+  .inventory-item-actions {
+    justify-content: space-between;
+  }
+
+  .inventory-item-actions .btn {
+    flex: 1;
+    min-height: 44px; /* Better touch target */
+  }
 }
 
 /* Space travel animation */
@@ -1453,40 +1614,65 @@ header {
 
 /* Mobile optimizations */
 @media (max-width: 768px) {
-  body {
+  html, body {
     font-size: 14px;
     overflow-x: hidden;
+    height: 100%;
+    width: 100%;
+    position: relative;
+    margin: 0;
+    padding: 0;
   }
 
   .game-container {
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    width: 100vw;
-    overflow: hidden;
+    height: 100%;
+    width: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
   }
 
-  .header {
-    height: auto;
+  .game-container.fade-in {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+  }
+
+  .container {
     padding: 10px;
-    flex-shrink: 0;
+    overflow-x: hidden;
+    width: 100%;
+    box-sizing: border-box;
   }
 
-  .header-content {
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px;
+  header {
+    height: auto;
+    padding: 10px 0;
+    flex-shrink: 0;
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .logo {
-    max-width: 120px;
-    margin-right: 10px;
+    max-width: 100%;
+    margin-right: 0;
+    margin-bottom: 10px;
   }
 
   .wallet-info {
     flex-wrap: wrap;
-    justify-content: center;
+    justify-content: flex-start;
     gap: 5px;
+    width: 100%;
   }
 
   .wallet-item {
@@ -1688,5 +1874,27 @@ header {
     bottom: 40%;
     font-size: clamp(14px, 4vw, 20px);
     padding: 6px 12px;
+  }
+}
+
+/* Hutt Loans Styles */
+.debt-section .coin-projection {
+  background: rgba(229, 18, 18, 0.1);
+  border: 1px solid rgba(229, 18, 18, 0.2);
+}
+
+.debt-section .projection-header {
+  color: var(--danger);
+}
+
+.debt-controls {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+@media (max-width: 480px) {
+  .debt-controls {
+    flex-direction: column;
   }
 }

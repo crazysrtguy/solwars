@@ -178,9 +178,9 @@ let gameState = {
   currentLocation: "Coruscant",
   day: 1,
   maxDays: 30,
-  credits: 1000,
-  debt: 3500,
-  cargoCapacity: 200, // Increased from 100
+  credits: 2000, // Increased from 1000 to 2000
+  debt: 2000, // Decreased from 3500 to 2000
+  cargoCapacity: 500, // Increased from 200 to 500
   currentCargo: 0,
   inventory: {
     KYBER: 0,
@@ -425,7 +425,10 @@ function travelToLocation(locationName) {
     gameState.currentLocation = locationName;
     gameState.day += 1;
 
-    console.log(`Updated game state: location=${gameState.currentLocation}, day=${gameState.day}, credits=${gameState.credits}`);
+    // Apply interest to debt when time passes
+    applyDebtInterest();
+
+    console.log(`Updated game state: location=${gameState.currentLocation}, day=${gameState.day}, credits=${gameState.credits}, debt=${gameState.debt}`);
 
     // Update active location in UI
     const locationItems = document.querySelectorAll('.location-item');
@@ -613,7 +616,7 @@ function showSpaceTravelAnimation(destinationName, callback) {
 
         // Call the callback
         if (callback) callback();
-      }, 8000);
+      }, 10000);
     } else {
       console.warn('Video is shorter than 8 seconds, playing entire video');
 
@@ -706,6 +709,23 @@ function processEvents() {
       event.description = event.description.replace("{LOCATION}", event.location);
     }
 
+    // If the event affects debt (Hutt Cartel Interest)
+    if (event.effect.type === "debt") {
+      // Apply the interest rate increase immediately
+      const interestAmount = gameState.debt * event.effect.change;
+
+      if (gameState.debt > 0 && interestAmount > 0) {
+        // Update debt
+        gameState.debt += interestAmount;
+
+        // Update the event description with the actual amount
+        event.description = `Hutt Cartel raised interest rates! Your debt increased by ${interestAmount.toLocaleString('en-US', {maximumFractionDigits: 2})} CR.`;
+      } else {
+        // If player has no debt, modify the description
+        event.description = "Hutt Cartel raised interest rates! Fortunately, you have no outstanding debt.";
+      }
+    }
+
     // Add the event to active events
     gameState.events.push(event);
 
@@ -731,7 +751,7 @@ function showEventModal(event) {
 // End game
 function endGame() {
   const netWorth = calculateNetWorth();
-  const score = netWorth - 1000; // Score is net worth minus starting amount
+  const score = netWorth - 2000; // Score is net worth minus starting amount
 
   console.log(`Game over! Final net worth: ${netWorth.toFixed(2)} CR, Score: ${score.toFixed(2)}`);
 
@@ -749,7 +769,7 @@ function endGame() {
         <div class="projection-header">Final Results</div>
         <div class="projection-item">
           <span>Starting Credits:</span>
-          <span>1,000.00 CR</span>
+          <span>2,000.00 CR</span>
         </div>
         <div class="projection-item">
           <span>Final Net Worth:</span>
@@ -870,12 +890,26 @@ function updateUI() {
     console.warn("walletDisplay element not found");
   }
 
-  // Update debt display
+  // Update debt displays
   const debtDisplay = document.getElementById('debtDisplay');
+  const huttDebtDisplay = document.getElementById('huttDebtDisplay');
+  const nextInterestDisplay = document.getElementById('nextInterestDisplay');
+
   if (debtDisplay) {
     debtDisplay.textContent = gameState.debt.toLocaleString('en-US', {maximumFractionDigits: 2});
   } else {
     console.warn("debtDisplay element not found");
+  }
+
+  // Update Hutt Loans section
+  if (huttDebtDisplay) {
+    huttDebtDisplay.textContent = gameState.debt.toLocaleString('en-US', {maximumFractionDigits: 2}) + " CR";
+  }
+
+  if (nextInterestDisplay) {
+    // Calculate next interest payment (5% of current debt)
+    const nextInterest = gameState.debt * 0.05;
+    nextInterestDisplay.textContent = nextInterest.toLocaleString('en-US', {maximumFractionDigits: 2}) + " CR";
   }
 
   // Update net worth display
@@ -1440,9 +1474,9 @@ function initializeGame() {
     currentLocation: "Coruscant",
     day: 1,
     maxDays: 30,
-    credits: 1000,
-    debt: 3500,
-    cargoCapacity: 200,
+    credits: 2000, // Increased from 1000 to 2000
+    debt: 2000, // Decreased from 3500 to 2000
+    cargoCapacity: 500, // Increased from 200 to 500
     currentCargo: 0,
     inventory: {
       KYBER: 0,
@@ -1534,7 +1568,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Save score if authenticated
         if (typeof authState !== 'undefined' && authState.isAuthenticated) {
           const netWorth = calculateNetWorth();
-          const score = netWorth - 1000;
+          const score = netWorth - 2000;
 
           if (gameState.day > 1) { // Only save if they've played at least one day
             saveGameResults(score, netWorth, gameState.day, true)
@@ -1991,6 +2025,90 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Function to repay debt
+  function repayDebt(amount) {
+    console.log(`Repaying ${amount} credits of debt...`);
+
+    // Validate amount
+    if (!amount || amount <= 0) {
+      showNotification('Please enter a valid amount', 'error');
+      return false;
+    }
+
+    // Check if player has enough credits
+    if (amount > gameState.credits) {
+      showNotification('Not enough credits in your wallet!', 'error');
+      return false;
+    }
+
+    // Calculate new values
+    const newDebt = Math.max(0, gameState.debt - amount);
+    const newCredits = gameState.credits - amount;
+
+    // Update game state
+    gameState.debt = newDebt;
+    gameState.credits = newCredits;
+
+    // Log the transaction
+    gameState.eventLog.unshift(`Cycle ${gameState.day}: Repaid ${amount.toLocaleString('en-US', {maximumFractionDigits: 2})} CR to the Hutt Cartel.`);
+
+    // Update UI
+    updateUI();
+
+    // Show notification
+    showNotification(`Repaid ${amount.toLocaleString('en-US', {maximumFractionDigits: 2})} credits of debt!`, 'success');
+
+    return true;
+  }
+
+  // Function to borrow money
+  function borrowMoney(amount) {
+    console.log(`Borrowing ${amount} credits from the Hutts...`);
+
+    // Validate amount
+    if (!amount || amount <= 0) {
+      showNotification('Please enter a valid amount', 'error');
+      return false;
+    }
+
+    // Set a maximum loan amount (can be adjusted)
+    const maxLoanAmount = 10000; // Increased from 5000 to 10000 to match the new cargo capacity and starting values
+    const currentDebtRatio = gameState.debt / calculateNetWorth();
+
+    // Check if player is already too deep in debt (debt > 80% of net worth)
+    if (currentDebtRatio > 0.8) {
+      showNotification('The Hutts refuse to lend you more credits. Your debt is too high!', 'error');
+      return false;
+    }
+
+    // Check if the requested amount would exceed the maximum loan
+    if (gameState.debt + amount > maxLoanAmount) {
+      showNotification(`The Hutts won't lend you that much. Maximum total debt: ${maxLoanAmount.toLocaleString('en-US')} CR`, 'error');
+      return false;
+    }
+
+    // Calculate new values
+    const newDebt = gameState.debt + amount;
+    const newCredits = gameState.credits + amount;
+
+    // Update game state
+    gameState.debt = newDebt;
+    gameState.credits = newCredits;
+
+    // Log the transaction
+    gameState.eventLog.unshift(`Cycle ${gameState.day}: Borrowed ${amount.toLocaleString('en-US', {maximumFractionDigits: 2})} CR from the Hutt Cartel.`);
+
+    // Update UI
+    updateUI();
+
+    // Show notification
+    showNotification(`Borrowed ${amount.toLocaleString('en-US', {maximumFractionDigits: 2})} credits from the Hutts!`, 'success');
+
+    return true;
+  }
+
+
+
   // Set up debt management
   const repayBtn = document.getElementById('repayBtn');
   if (repayBtn) {
@@ -1998,34 +2116,45 @@ document.addEventListener('DOMContentLoaded', () => {
       const amountInput = document.getElementById('debtAmount');
       const amount = parseFloat(amountInput.value);
 
-      if (!amount || amount <= 0) {
-        showNotification('Please enter a valid amount', 'error');
-        return;
+      if (repayDebt(amount)) {
+        amountInput.value = '';
       }
-
-      const currentDebt = parseFloat(document.getElementById('debtDisplay').textContent.replace(',', ''));
-      const currentWallet = parseFloat(document.getElementById('walletDisplay').textContent.replace(',', ''));
-
-      if (amount > currentWallet) {
-        showNotification('Not enough credits in your wallet!', 'error');
-        return;
-      }
-
-      const newDebt = Math.max(0, currentDebt - amount);
-      const newWallet = currentWallet - amount;
-
-      document.getElementById('debtDisplay').textContent = newDebt.toLocaleString('en-US', {maximumFractionDigits: 2});
-      document.getElementById('walletDisplay').textContent = newWallet.toLocaleString('en-US', {maximumFractionDigits: 2});
-
-      // Update net worth
-      const tokensValue = 5.75; // This would normally be calculated
-      const newNetWorth = newWallet + tokensValue - newDebt;
-      document.getElementById('netWorthDisplay').textContent = newNetWorth.toLocaleString('en-US', {maximumFractionDigits: 2});
-
-      amountInput.value = '';
-      showNotification(`Repaid ${amount.toLocaleString('en-US', {maximumFractionDigits: 2})} credits of debt!`, 'success');
     });
   }
+
+  // Set up borrowing
+  const borrowBtn = document.getElementById('borrowBtn');
+  if (borrowBtn) {
+    borrowBtn.addEventListener('click', () => {
+      const amountInput = document.getElementById('debtAmount');
+      const amount = parseFloat(amountInput.value);
+
+      if (borrowMoney(amount)) {
+        amountInput.value = '';
+      }
+    });
+  }
+
+// Apply interest to debt when time passes
+function applyDebtInterest() {
+  // Base interest rate is 5% per cycle
+  const baseInterestRate = 0.05;
+
+  // Calculate interest
+  const interest = gameState.debt * baseInterestRate;
+
+  // Only apply interest if there is debt
+  if (gameState.debt > 0 && interest > 0) {
+    // Update debt
+    gameState.debt += interest;
+
+    // Log the transaction
+    gameState.eventLog.unshift(`Cycle ${gameState.day}: Hutt Cartel charged ${interest.toLocaleString('en-US', {maximumFractionDigits: 2})} CR in interest.`);
+
+    // Show notification
+    showNotification(`The Hutts charged you ${interest.toLocaleString('en-US', {maximumFractionDigits: 2})} CR in interest!`, 'info');
+  }
+}
 
 // Show notification function - moved outside of DOMContentLoaded to make it globally accessible
 function showNotification(message, type = 'success') {
