@@ -81,10 +81,7 @@ module.exports = async function handler(req, res) {
         }
       ];
 
-      res.status(200).json({
-        success: true,
-        tournaments: testTournaments
-      });
+      res.status(200).json(testTournaments);
 
     } else if (req.method === 'POST') {
       // Return test tournament creation

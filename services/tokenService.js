@@ -6,11 +6,11 @@ const prisma = new PrismaClient();
 class TokenService {
   constructor() {
     this.dexScreenerAPI = 'https://api.dexscreener.com';
-    this.jupiterAPI = 'https://price.jup.ag/v4';
+    this.jupiterAPI = 'https://api.jup.ag/price/v2'; // Updated Jupiter API URL
     this.heliusAPI = process.env.HELIUS_API_URL || 'https://api.helius.xyz/v0';
     this.cache = new Map();
     this.tokenProfilesCache = new Map();
-    this.cacheTimeout = 30000; // 30 seconds
+    this.cacheTimeout = 15000; // 15 seconds for more real-time updates
   }
 
   // Get trending Solana tokens from DexScreener
@@ -58,44 +58,73 @@ class TokenService {
 
       console.log(`💰 Fetching prices for ${tokenAddresses.length} tokens...`);
 
-      // Primary: Jupiter Price API
-      const jupiterResponse = await axios.get(
-        `${this.jupiterAPI}/price?ids=${tokenAddresses.join(',')}`
-      );
-
       const prices = {};
-      for (const [address, data] of Object.entries(jupiterResponse.data.data || {})) {
-        prices[address] = {
-          address,
-          price: data.price,
-          source: 'jupiter',
-          timestamp: Date.now()
-        };
-      }
 
-      // Fallback: DexScreener for missing tokens
-      for (const address of tokenAddresses) {
-        if (!prices[address]) {
-          try {
-            const dexResponse = await axios.get(
-              `${this.dexScreenerAPI}/latest/dex/tokens/${address}`
-            );
+      // Primary: DexScreener API (more reliable)
+      try {
+        const addressesString = tokenAddresses.join(',');
+        const dexResponse = await axios.get(
+          `${this.dexScreenerAPI}/latest/dex/tokens/${addressesString}`
+        );
 
-            if (dexResponse.data.pairs && dexResponse.data.pairs.length > 0) {
-              const pair = dexResponse.data.pairs[0];
-              prices[address] = {
-                address,
-                price: parseFloat(pair.priceUsd || 0),
-                marketCap: pair.marketCap,
-                volume24h: pair.volume?.h24,
-                priceChange: pair.priceChange?.h24,
+        if (dexResponse.data.pairs && dexResponse.data.pairs.length > 0) {
+          // Group pairs by token address
+          const pairsByToken = {};
+          dexResponse.data.pairs.forEach(pair => {
+            const tokenAddress = pair.baseToken.address;
+            if (!pairsByToken[tokenAddress]) {
+              pairsByToken[tokenAddress] = [];
+            }
+            pairsByToken[tokenAddress].push(pair);
+          });
+
+          // Process each token
+          for (const [tokenAddress, pairs] of Object.entries(pairsByToken)) {
+            if (pairs.length > 0) {
+              // Select best pair (highest liquidity)
+              const bestPair = pairs.sort((a, b) => {
+                const liquidityA = a.liquidity?.usd || 0;
+                const liquidityB = b.liquidity?.usd || 0;
+                return liquidityB - liquidityA;
+              })[0];
+
+              prices[tokenAddress] = {
+                address: tokenAddress,
+                price: parseFloat(bestPair.priceUsd || 0),
+                marketCap: bestPair.marketCap,
+                volume24h: bestPair.volume?.h24 || 0,
+                priceChange: bestPair.priceChange?.h24 || 0,
+                liquidity: bestPair.liquidity?.usd || 0,
                 source: 'dexscreener',
                 timestamp: Date.now()
               };
             }
-          } catch (err) {
-            console.warn(`⚠️ Could not fetch price for ${address}:`, err.message);
           }
+        }
+      } catch (dexError) {
+        console.warn('⚠️ DexScreener API error:', dexError.message);
+      }
+
+      // Fallback: Jupiter Price API for missing tokens
+      const missingTokens = tokenAddresses.filter(addr => !prices[addr]);
+      if (missingTokens.length > 0) {
+        try {
+          const jupiterResponse = await axios.get(
+            `${this.jupiterAPI}/price?ids=${missingTokens.join(',')}`
+          );
+
+          for (const [address, data] of Object.entries(jupiterResponse.data.data || {})) {
+            if (!prices[address]) {
+              prices[address] = {
+                address,
+                price: data.price,
+                source: 'jupiter',
+                timestamp: Date.now()
+              };
+            }
+          }
+        } catch (jupError) {
+          console.warn('⚠️ Jupiter API error:', jupError.message);
         }
       }
 

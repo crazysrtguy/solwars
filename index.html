@@ -347,16 +347,24 @@
             <span class="value" id="tournamentTimeRemaining">--:--:--</span>
           </div>
           <div class="status-item">
-            <span class="label">Portfolio Value</span>
+            <span class="label">Total Value</span>
             <span class="value" id="tournamentBalance">$0.00</span>
           </div>
           <div class="status-item">
-            <span class="label">Current Rank</span>
-            <span class="value" id="tournamentRank">#--</span>
+            <span class="label">Cash Balance</span>
+            <span class="value" id="tournamentCash">$0.00</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Portfolio Value</span>
+            <span class="value" id="tournamentPortfolio">$0.00</span>
           </div>
           <div class="status-item">
             <span class="label">Profit/Loss</span>
             <span class="value" id="tournamentProfitLoss">$0.00</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Current Rank</span>
+            <span class="value" id="tournamentRank">#--</span>
           </div>
         </div>
 
@@ -370,6 +378,21 @@
               <div class="loading-state">
                 <i class="fas fa-spinner fa-spin"></i>
                 <p>Loading trading tokens...</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Positions Panel -->
+          <div class="positions-panel">
+            <h3>📊 My Positions</h3>
+            <div class="positions-container" id="positionsContainer">
+              <div class="no-positions-state" id="noPositionsState">
+                <i class="fas fa-chart-line"></i>
+                <p>No positions yet</p>
+                <span>Start trading to see your positions here</span>
+              </div>
+              <div class="positions-list" id="positionsList">
+                <!-- Positions will be loaded here -->
               </div>
             </div>
           </div>

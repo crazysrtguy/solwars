@@ -26,6 +26,8 @@ class TournamentManager {
     this.loadTournaments();
     this.setupEventListeners();
     this.setupFilterListeners();
+    this.loadTrendingTokens();
+    this.startTimerUpdates();
   }
 
   // Initialize price polling for Vercel deployment (replaces WebSocket)
@@ -76,6 +78,44 @@ class TournamentManager {
       clearInterval(this.pricePollingInterval);
       this.pricePollingInterval = null;
       console.log('🔌 Price polling stopped');
+    }
+  }
+
+  // Initialize live market display
+  initializeLiveMarket() {
+    console.log('📊 Initializing live market display');
+
+    // Show initial loading state
+    const liveMarketList = document.getElementById('liveMarketList');
+    if (liveMarketList) {
+      console.log('✅ Found liveMarketList element');
+      liveMarketList.innerHTML = `
+        <div class="loading-state">
+          <i class="fas fa-chart-line"></i>
+          <p>Loading market data...</p>
+        </div>
+      `;
+    } else {
+      console.error('❌ liveMarketList element not found');
+    }
+
+    // Initialize top traders list
+    const topTradersList = document.getElementById('topTradersList');
+    if (topTradersList) {
+      console.log('✅ Found topTradersList element');
+      topTradersList.innerHTML = `
+        <div class="loading-state">
+          <i class="fas fa-crown"></i>
+          <p>Loading top traders...</p>
+        </div>
+      `;
+    } else {
+      console.error('❌ topTradersList element not found');
+    }
+
+    // Update market display when prices are available
+    if (Object.keys(this.realTimePrices).length > 0) {
+      this.updateLiveMarketDisplay();
     }
   }
 
@@ -136,10 +176,11 @@ class TournamentManager {
 
   // Update price displays in trading interface
   updatePriceDisplays() {
-    for (const [tokenAddress, priceData] of Object.entries(this.realTimePrices)) {
-      const priceElement = document.getElementById(`price-${tokenAddress}`);
-      const changeElement = document.getElementById(`change-${tokenAddress}`);
+    console.log(`🔄 Updating price displays for ${Object.keys(this.realTimePrices).length} tokens...`);
 
+    for (const [tokenAddress, priceData] of Object.entries(this.realTimePrices)) {
+      // Update main price display
+      const priceElement = document.getElementById(`price-${tokenAddress}`);
       if (priceElement && priceData.price) {
         const oldPrice = parseFloat(priceElement.textContent.replace('$', '')) || 0;
         const newPrice = priceData.price;
@@ -151,18 +192,52 @@ class TournamentManager {
           const changeClass = newPrice > oldPrice ? 'price-up' : 'price-down';
           priceElement.classList.add(changeClass);
           setTimeout(() => priceElement.classList.remove(changeClass), 1000);
+          console.log(`💰 Price updated for ${tokenAddress}: $${oldPrice.toFixed(6)} → $${newPrice.toFixed(6)}`);
         }
       }
 
-      if (changeElement && priceData.priceChange24h !== undefined) {
+      // Update 24h price change display
+      const change24hElement = document.getElementById(`change-24h-${tokenAddress}`);
+      if (change24hElement && priceData.priceChange24h !== undefined) {
         const change = priceData.priceChange24h;
         const changeClass = change >= 0 ? 'positive' : 'negative';
         const changeIcon = change >= 0 ? '↗' : '↘';
 
-        changeElement.textContent = `${changeIcon} ${Math.abs(change).toFixed(2)}%`;
-        changeElement.className = `price-change ${changeClass}`;
+        change24hElement.textContent = `24h: ${changeIcon} ${Math.abs(change).toFixed(2)}%`;
+        change24hElement.className = `price-change ${changeClass}`;
+      }
+
+      // Update 6h price change display if available
+      const change6hElement = document.getElementById(`change-6h-${tokenAddress}`);
+      if (change6hElement && priceData.priceChange6h !== undefined) {
+        const change6h = priceData.priceChange6h;
+        const changeClass6h = change6h >= 0 ? 'positive' : 'negative';
+        const changeIcon6h = change6h >= 0 ? '↗' : '↘';
+
+        change6hElement.textContent = `6h: ${changeIcon6h} ${Math.abs(change6h).toFixed(2)}%`;
+        change6hElement.className = `price-change-6h ${changeClass6h}`;
+      }
+
+      // Update volume and other stats if elements exist
+      const volumeElement = document.querySelector(`[data-token-address="${tokenAddress}"] .stat-value`);
+      if (volumeElement && priceData.volume24h !== undefined) {
+        // Find the volume stat specifically
+        const tokenCard = document.querySelector(`[data-token-address="${tokenAddress}"]`);
+        if (tokenCard) {
+          const volumeStat = Array.from(tokenCard.querySelectorAll('.stat')).find(stat =>
+            stat.querySelector('.stat-label')?.textContent.includes('24h Volume')
+          );
+          if (volumeStat) {
+            const volumeValue = volumeStat.querySelector('.stat-value');
+            if (volumeValue) {
+              volumeValue.textContent = this.formatNumber(priceData.volume24h || 0);
+            }
+          }
+        }
       }
     }
+
+    console.log(`✅ Price displays updated for ${Object.keys(this.realTimePrices).length} tokens`);
   }
 
   // Update portfolio value (placeholder for now)
@@ -172,6 +247,430 @@ class TournamentManager {
       // Trigger portfolio reload if we're in a tournament
       this.loadUserPortfolio(this.currentTournament.id);
     }
+  }
+
+  // Load trending tokens for live market
+  async loadTrendingTokens() {
+    try {
+      console.log('🔥 Loading trending tokens for live market...');
+
+      const response = await fetch('/api/tokens/trending?limit=25');
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const trendingTokens = await response.json();
+      console.log(`✅ Loaded ${trendingTokens.length} trending tokens`);
+
+      this.displayTrendingTokens(trendingTokens);
+
+    } catch (error) {
+      console.error('❌ Error loading trending tokens:', error);
+      this.showLiveMarketError();
+    }
+  }
+
+  // Display trending tokens in live market
+  displayTrendingTokens(tokens) {
+    const liveMarketList = document.getElementById('liveMarketList');
+    if (!liveMarketList) return;
+
+    if (!tokens || tokens.length === 0) {
+      liveMarketList.innerHTML = `
+        <div class="loading-state">
+          <i class="fas fa-chart-line"></i>
+          <p>No trending tokens available</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Sort by 24h volume (highest first)
+    const sortedTokens = tokens
+      .filter(token => token && token.symbol && token.price > 0)
+      .sort((a, b) => (b.volume24h || 0) - (a.volume24h || 0))
+      .slice(0, 25); // Top 25 trending tokens
+
+    liveMarketList.innerHTML = '';
+
+    sortedTokens.forEach((token, index) => {
+      const marketItem = document.createElement('div');
+      marketItem.className = 'market-token-item';
+      marketItem.setAttribute('data-token-address', token.address || token.tokenAddress);
+
+      const priceChange = token.priceChange24h || 0;
+      const priceChangeClass = priceChange >= 0 ? 'positive' : 'negative';
+      const priceChangeIcon = priceChange >= 0 ? '↗' : '↘';
+      const priceChangeText = `${priceChangeIcon} ${Math.abs(priceChange).toFixed(2)}%`;
+
+      // Format price based on value
+      let formattedPrice;
+      if (token.price >= 1) {
+        formattedPrice = `$${token.price.toFixed(4)}`;
+      } else if (token.price >= 0.01) {
+        formattedPrice = `$${token.price.toFixed(6)}`;
+      } else {
+        formattedPrice = `$${token.price.toExponential(2)}`;
+      }
+
+      marketItem.innerHTML = `
+        <div class="market-token-info">
+          <div class="token-rank">#${index + 1}</div>
+          <div class="token-details">
+            <div class="token-symbol">${token.symbol}</div>
+            <div class="token-price">${formattedPrice}</div>
+          </div>
+        </div>
+        <div class="market-token-stats">
+          <div class="token-change ${priceChangeClass}">${priceChangeText}</div>
+          <div class="token-volume">Vol: $${this.formatNumber(token.volume24h || 0)}</div>
+        </div>
+      `;
+
+      // Add click handler to show token details
+      marketItem.addEventListener('click', () => {
+        this.showTokenDetails(token);
+      });
+
+      liveMarketList.appendChild(marketItem);
+    });
+
+    console.log(`📊 Displayed ${sortedTokens.length} trending tokens in live market`);
+  }
+
+  // Show error state in live market
+  showLiveMarketError() {
+    const liveMarketList = document.getElementById('liveMarketList');
+    if (liveMarketList) {
+      liveMarketList.innerHTML = `
+        <div class="loading-state">
+          <i class="fas fa-exclamation-triangle"></i>
+          <p>Unable to load market data</p>
+          <button class="btn btn-small" onclick="tournamentManager.loadTrendingTokens()">
+            <i class="fas fa-refresh"></i> Retry
+          </button>
+        </div>
+      `;
+    }
+  }
+
+  // Update live market display with real-time data
+  updateLiveMarketDisplay() {
+    const liveMarketList = document.getElementById('liveMarketList');
+    if (!liveMarketList) return;
+
+    // Get all available tokens from real-time prices
+    const marketTokens = Object.entries(this.realTimePrices)
+      .map(([address, priceData]) => {
+        // Try to get token metadata from current tournament or create basic info
+        let tokenInfo = { address, symbol: 'UNKNOWN', name: 'Unknown Token' };
+
+        if (this.currentTournament && this.currentTournament.selectedTokens) {
+          const tournamentToken = this.currentTournament.selectedTokens.find(t => t.address === address);
+          if (tournamentToken) {
+            tokenInfo = tournamentToken;
+          }
+        }
+
+        return {
+          ...tokenInfo,
+          ...priceData,
+          address
+        };
+      })
+      .sort((a, b) => Math.abs(b.priceChange24h) - Math.abs(a.priceChange24h)); // Sort by biggest price changes
+
+    if (marketTokens.length === 0) {
+      liveMarketList.innerHTML = `
+        <div class="loading-state">
+          <i class="fas fa-chart-line"></i>
+          <p>Waiting for market data...</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Create market items
+    liveMarketList.innerHTML = '';
+
+    marketTokens.slice(0, 8).forEach(token => { // Show top 8 tokens
+      const marketItem = document.createElement('div');
+      marketItem.className = 'market-token-item';
+      marketItem.setAttribute('data-token-address', token.address);
+
+      const priceChangeClass = token.priceChange24h >= 0 ? 'positive' : 'negative';
+      const priceChangeIcon = token.priceChange24h >= 0 ? '↗' : '↘';
+      const priceChangeText = `${priceChangeIcon} ${Math.abs(token.priceChange24h).toFixed(2)}%`;
+
+      marketItem.innerHTML = `
+        <div class="market-token-info">
+          <div class="token-symbol">${token.symbol}</div>
+          <div class="token-price">$${token.price.toFixed(6)}</div>
+        </div>
+        <div class="market-token-stats">
+          <div class="token-change ${priceChangeClass}">${priceChangeText}</div>
+          <div class="token-volume">Vol: $${this.formatNumber(token.volume24h)}</div>
+        </div>
+      `;
+
+      // Add click handler to show token details
+      marketItem.addEventListener('click', () => {
+        this.showTokenDetails(token);
+      });
+
+      liveMarketList.appendChild(marketItem);
+    });
+
+    console.log(`📊 Updated live market with ${marketTokens.length} tokens`);
+  }
+
+  // Format large numbers for display
+  formatNumber(num) {
+    if (num >= 1e9) {
+      return (num / 1e9).toFixed(1) + 'B';
+    } else if (num >= 1e6) {
+      return (num / 1e6).toFixed(1) + 'M';
+    } else if (num >= 1e3) {
+      return (num / 1e3).toFixed(1) + 'K';
+    }
+    return num.toFixed(0);
+  }
+
+  // Show token details modal
+  showTokenDetails(token) {
+    console.log(`📊 Showing details for token: ${token.symbol}`);
+
+    // Create or get existing modal
+    let modal = document.getElementById('tokenDetailsModal');
+    if (!modal) {
+      modal = this.createTokenDetailsModal();
+    }
+
+    // Update modal content
+    const modalContent = modal.querySelector('#tokenDetailsContent');
+    const priceChangeClass = token.priceChange24h >= 0 ? 'positive' : 'negative';
+    const priceChangeIcon = token.priceChange24h >= 0 ? '↗' : '↘';
+
+    modalContent.innerHTML = `
+      <div class="token-details-header">
+        <div class="token-details-title">
+          <h3>${token.name || token.symbol}</h3>
+          <span class="token-details-symbol">${token.symbol}</span>
+        </div>
+        <div class="token-details-price">
+          <div class="current-price">$${token.price.toFixed(6)}</div>
+          <div class="price-change ${priceChangeClass}">
+            ${priceChangeIcon} ${Math.abs(token.priceChange24h).toFixed(2)}% (24h)
+          </div>
+        </div>
+      </div>
+
+      <div class="token-details-stats">
+        <div class="stat-row">
+          <span class="stat-label">24h Volume:</span>
+          <span class="stat-value">$${this.formatNumber(token.volume24h)}</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Liquidity:</span>
+          <span class="stat-value">$${this.formatNumber(token.liquidity)}</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Last Updated:</span>
+          <span class="stat-value">${new Date(token.lastUpdated).toLocaleTimeString()}</span>
+        </div>
+      </div>
+
+      <div class="token-details-actions">
+        <button class="btn btn-secondary" onclick="closeTokenDetailsModal()">Close</button>
+        ${this.currentTournament ? `
+          <button class="btn btn-primary" onclick="tournamentManager.quickTradeToken('${token.address}')">
+            <i class="fas fa-bolt"></i> Quick Trade
+          </button>
+        ` : ''}
+      </div>
+    `;
+
+    modal.classList.add('active');
+  }
+
+  // Create token details modal
+  createTokenDetailsModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'tokenDetailsModal';
+    modal.innerHTML = `
+      <div class="modal">
+        <button class="close-modal" onclick="closeTokenDetailsModal()">&times;</button>
+        <h2>Token Details</h2>
+        <div id="tokenDetailsContent">
+          <!-- Content will be populated dynamically -->
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    return modal;
+  }
+
+  // Quick trade functionality
+  quickTradeToken(tokenAddress) {
+    if (!this.currentTournament) {
+      showNotification('Please join a tournament to trade', 'warning');
+      return;
+    }
+
+    // Close token details modal
+    const modal = document.getElementById('tokenDetailsModal');
+    if (modal) {
+      modal.classList.remove('active');
+    }
+
+    // Scroll to trading interface if not visible
+    const tradingPanel = document.querySelector('.trading-panel');
+    if (tradingPanel) {
+      tradingPanel.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Highlight the specific token card
+    setTimeout(() => {
+      const tokenCard = document.querySelector(`[data-token-address="${tokenAddress}"]`);
+      if (tokenCard) {
+        tokenCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        tokenCard.classList.add('highlight-token');
+        setTimeout(() => tokenCard.classList.remove('highlight-token'), 3000);
+      }
+    }, 500);
+
+    showNotification(`Navigate to ${this.getTokenSymbol(tokenAddress)} trading card below`, 'info');
+  }
+
+  // Get token symbol by address
+  getTokenSymbol(address) {
+    if (this.currentTournament && this.currentTournament.selectedTokens) {
+      const token = this.currentTournament.selectedTokens.find(t => t.address === address);
+      return token ? token.symbol : 'Token';
+    }
+    return 'Token';
+  }
+
+  // Start live timer updates
+  startTimerUpdates() {
+    // Update timers every second
+    this.timerInterval = setInterval(() => {
+      this.updateAllTimers();
+    }, 1000);
+    console.log('⏰ Started live timer updates');
+  }
+
+  // Stop timer updates
+  stopTimerUpdates() {
+    if (this.timerInterval) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = null;
+      console.log('⏰ Stopped timer updates');
+    }
+  }
+
+  // Update all tournament timers
+  updateAllTimers() {
+    const tournamentCards = document.querySelectorAll('.tournament-card');
+    tournamentCards.forEach(card => {
+      const tournamentId = card.getAttribute('data-tournament-id');
+      const tournament = this.activeTournaments.find(t => t.id === tournamentId);
+
+      if (tournament) {
+        this.updateTournamentTimer(card, tournament);
+      }
+    });
+
+    // Update current tournament timer if in one
+    if (this.currentTournament) {
+      this.updateCurrentTournamentTimer();
+    }
+  }
+
+  // Update individual tournament timer
+  updateTournamentTimer(card, tournament) {
+    const timerElement = card.querySelector('.tournament-timer');
+    if (!timerElement) return;
+
+    const now = Date.now();
+    const startTime = new Date(tournament.startTime).getTime();
+    const endTime = new Date(tournament.endTime).getTime();
+
+    let timeText = '';
+    let statusClass = '';
+
+    if (now < startTime) {
+      // Tournament hasn't started yet
+      const timeUntilStart = startTime - now;
+      timeText = `Starts in ${this.formatTimeRemaining(timeUntilStart)}`;
+      statusClass = 'upcoming';
+    } else if (now >= startTime && now < endTime) {
+      // Tournament is active
+      const timeUntilEnd = endTime - now;
+      timeText = `${this.formatTimeRemaining(timeUntilEnd)} remaining`;
+      statusClass = 'active';
+    } else {
+      // Tournament has ended
+      timeText = 'Tournament ended';
+      statusClass = 'ended';
+    }
+
+    timerElement.textContent = timeText;
+    timerElement.className = `tournament-timer ${statusClass}`;
+  }
+
+  // Update current tournament timer in trading interface
+  updateCurrentTournamentTimer() {
+    const timerElement = document.getElementById('tournamentTimer');
+    if (!timerElement) return;
+
+    const now = Date.now();
+    const endTime = new Date(this.currentTournament.endTime).getTime();
+
+    if (now < endTime) {
+      const timeRemaining = endTime - now;
+      timerElement.textContent = this.formatTimeRemaining(timeRemaining);
+      timerElement.className = 'tournament-timer active';
+    } else {
+      timerElement.textContent = 'Tournament ended';
+      timerElement.className = 'tournament-timer ended';
+      // Optionally show tournament results
+      this.showTournamentResults();
+    }
+  }
+
+  // Format time remaining in human-readable format
+  formatTimeRemaining(milliseconds) {
+    if (milliseconds <= 0) return '0s';
+
+    const seconds = Math.floor(milliseconds / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) {
+      return `${days}d ${hours % 24}h ${minutes % 60}m`;
+    } else if (hours > 0) {
+      return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${seconds % 60}s`;
+    } else {
+      return `${seconds}s`;
+    }
+  }
+
+  // Show tournament results when ended
+  showTournamentResults() {
+    if (this.tournamentResultsShown) return;
+    this.tournamentResultsShown = true;
+
+    showNotification('Tournament has ended! Check the leaderboard for final results.', 'info');
+
+    // Optionally redirect to results page or show modal
+    setTimeout(() => {
+      this.showTournamentLeaderboard();
+    }, 2000);
   }
 
   // Handle tournament updates
@@ -260,28 +759,30 @@ class TournamentManager {
     try {
       console.log('🏆 Loading active tournaments...');
       const response = await fetch('/api/tournaments');
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
       const data = await response.json();
 
-      if (data.success && data.tournaments) {
-        this.activeTournaments = data.tournaments;
-        console.log(`✅ Loaded ${data.tournaments.length} active tournaments`);
-
-        // If showing my tournaments, also load user tournaments
-        if (this.currentFilter === 'my-tournaments' && authState.isAuthenticated) {
-          await this.loadUserTournaments();
-        } else {
-          // Apply current filter
-          this.filterTournaments();
-          this.displayTournaments();
-        }
+      // Handle both array format and object format
+      let tournaments;
+      if (Array.isArray(data)) {
+        tournaments = data;
+      } else if (data.success && data.tournaments) {
+        tournaments = data.tournaments;
       } else {
-        throw new Error(data.error || 'Failed to load tournaments');
+        throw new Error('Invalid response format');
       }
+
+      this.activeTournaments = tournaments;
+
+      // If showing my tournaments, also load user tournaments
+      if (this.currentFilter === 'my-tournaments' && authState.isAuthenticated) {
+        await this.loadUserTournaments();
+      } else {
+        // Apply current filter
+        this.filterTournaments();
+        this.displayTournaments();
+      }
+
+      console.log(`✅ Loaded ${tournaments.length} active tournaments`);
     } catch (error) {
       console.error('❌ Error loading tournaments:', error);
       showNotification('Failed to load tournaments', 'error');
@@ -464,6 +965,9 @@ class TournamentManager {
         <div class="time-info">
           <span class="time-label">${tournament.status === 'ACTIVE' ? 'Ends in' : 'Starts in'}</span>
           <span class="time-value">${tournament.status === 'ACTIVE' ? timeUntilEnd : timeUntilStart}</span>
+        </div>
+        <div class="tournament-timer upcoming">
+          Loading timer...
         </div>
       </div>
 
@@ -990,6 +1494,9 @@ class TournamentManager {
 
         // Start real-time updates
         this.startTournamentUpdates(tournamentId);
+
+        // Start aggressive price updates for trading tokens
+        this.startTradingTokenPriceUpdates();
       }
     } catch (error) {
       console.error('❌ Error showing tournament interface:', error);
@@ -1019,8 +1526,11 @@ class TournamentManager {
       // Load trading tokens with comprehensive data
       await this.loadTradingTokens(tournament.selectedTokens || []);
 
-      // Load user portfolio
+      // Load user portfolio and positions
+      console.log('🔄 Initial load: Loading portfolio and positions...');
       await this.loadUserPortfolio(tournamentId);
+      await this.loadUserPositions(tournamentId);
+      console.log('✅ Initial load: Portfolio and positions loaded');
 
       // Load leaderboard
       this.updateLeaderboard(tournament.leaderboard || []);
@@ -1434,8 +1944,9 @@ class TournamentManager {
         const amountInput = document.querySelector(`#amount-${tokenAddress}`);
         if (amountInput) amountInput.value = '';
 
-        // Reload portfolio to get latest data
+        // Reload portfolio and positions to get latest data
         await this.loadUserPortfolio(this.currentTournament.id);
+        await this.loadUserPositions(this.currentTournament.id);
 
       } else {
         throw new Error(result.error);
@@ -1586,9 +2097,12 @@ class TournamentManager {
       if (result.success) {
         showNotification(result.message, 'success');
 
-        // Update UI
+        // Update UI - reload both portfolio and positions
+        console.log('🔄 Reloading portfolio and positions after trade...');
         await this.loadUserPortfolio(this.currentTournament.id);
+        await this.loadUserPositions(this.currentTournament.id);
         this.clearTradeInput(tokenAddress);
+        console.log('✅ Portfolio and positions reload completed');
       } else {
         showNotification(result.error || 'Trade failed', 'error');
       }
@@ -1606,22 +2120,8 @@ class TournamentManager {
       const response = await fetch(`/api/trading/portfolio/${tournamentId}/${authState.walletAddress}`);
       const portfolio = await response.json();
 
-      // Update header
-      const balance = document.getElementById('tournamentBalance');
-      const profitLoss = document.getElementById('tournamentProfitLoss');
-
-      if (balance) {
-        const totalValue = portfolio.totalValue || portfolio.total || 0;
-        balance.textContent = `$${totalValue.toFixed(2)}`;
-      }
-
-      if (profitLoss) {
-        const profit = portfolio.profit || 0;
-        const profitClass = profit >= 0 ? 'profit-positive' : 'profit-negative';
-        const profitIcon = profit >= 0 ? '+' : '';
-        profitLoss.textContent = `${profitIcon}$${profit.toFixed(2)}`;
-        profitLoss.className = `value ${profitClass}`;
-      }
+      // Update tournament status bar with detailed balance info
+      this.updateTournamentStatusBar(portfolio);
 
       // Update token holdings
       console.log('📊 Portfolio data received:', portfolio);
@@ -1654,6 +2154,195 @@ class TournamentManager {
     }
   }
 
+  // Update tournament status bar with detailed balance information
+  updateTournamentStatusBar(portfolio) {
+    if (!portfolio) return;
+
+    console.log('💰 Updating tournament status bar with portfolio:', portfolio);
+
+    // Update main balance display (total value)
+    const balance = document.getElementById('tournamentBalance');
+    if (balance) {
+      const totalValue = portfolio.totalValue || 0;
+      balance.textContent = `$${totalValue.toFixed(2)}`;
+    }
+
+    // Update profit/loss display with percentage
+    const profitLoss = document.getElementById('tournamentProfitLoss');
+    if (profitLoss) {
+      const profit = portfolio.profit || 0;
+      const profitPercent = portfolio.profitPercent || 0;
+      const profitClass = profit >= 0 ? 'profit-positive' : 'profit-negative';
+      const profitIcon = profit >= 0 ? '+' : '';
+
+      profitLoss.innerHTML = `
+        <span class="profit-amount">${profitIcon}$${profit.toFixed(2)}</span>
+        <span class="profit-percent">(${profitIcon}${profitPercent.toFixed(2)}%)</span>
+      `;
+      profitLoss.className = `value ${profitClass}`;
+    }
+
+    // Update cash balance display (virtual SOL available for trading)
+    const cashBalance = document.getElementById('tournamentCash');
+    if (cashBalance) {
+      const cash = portfolio.cashBalance || 0;
+      cashBalance.textContent = `$${cash.toFixed(2)}`;
+    }
+
+    // Update portfolio value display (value of held tokens)
+    const portfolioValue = document.getElementById('tournamentPortfolio');
+    if (portfolioValue) {
+      const value = portfolio.portfolioValue || 0;
+      portfolioValue.textContent = `$${value.toFixed(2)}`;
+    }
+
+    // Update starting balance reference
+    const startingBalance = document.getElementById('tournamentStarting');
+    if (startingBalance) {
+      const starting = portfolio.startingBalance || 10000;
+      startingBalance.textContent = `$${starting.toFixed(2)}`;
+    }
+
+    console.log(`✅ Status bar updated - Total: $${portfolio.totalValue?.toFixed(2)}, Cash: $${portfolio.cashBalance?.toFixed(2)}, Portfolio: $${portfolio.portfolioValue?.toFixed(2)}, P&L: ${portfolio.profit >= 0 ? '+' : ''}$${portfolio.profit?.toFixed(2)} (${portfolio.profitPercent?.toFixed(2)}%)`);
+  }
+
+  // Load user positions with detailed buy prices and P&L
+  async loadUserPositions(tournamentId) {
+    console.log('🔍 loadUserPositions called with:', { tournamentId, authState: authState.isAuthenticated, walletAddress: authState.walletAddress });
+
+    if (!authState.isAuthenticated) {
+      console.log('⚠️ Not authenticated, skipping positions load');
+      return;
+    }
+
+    try {
+      const url = `/api/trading/positions/${tournamentId}/${authState.walletAddress}`;
+      console.log(`📊 Making positions API call to: ${url}`);
+
+      const response = await fetch(url);
+      console.log('📊 Positions API response status:', response.status);
+      console.log('📊 Positions API response headers:', response.headers);
+
+      if (!response.ok) {
+        console.error('❌ Positions API response not ok:', response.status, response.statusText);
+        const errorText = await response.text();
+        console.error('❌ Error response body:', errorText);
+        this.showNoPositions();
+        return;
+      }
+
+      const positionsData = await response.json();
+      console.log('📊 Positions API response data:', positionsData);
+
+      if (positionsData.success && positionsData.positions && positionsData.positions.length > 0) {
+        console.log(`✅ Found ${positionsData.positions.length} positions, updating display...`);
+        this.updatePositionsDisplay(positionsData);
+        console.log(`✅ Loaded ${positionsData.totalPositions} positions`);
+      } else {
+        console.log('⚠️ No positions data available or empty positions array');
+        this.showNoPositions();
+      }
+    } catch (error) {
+      console.error('❌ Error loading positions:', error);
+      console.error('❌ Error stack:', error.stack);
+      this.showNoPositions();
+    }
+  }
+
+  // Update positions display
+  updatePositionsDisplay(positionsData) {
+    const positionsContainer = document.getElementById('positionsContainer');
+    const noPositionsState = document.getElementById('noPositionsState');
+    const positionsList = document.getElementById('positionsList');
+
+    if (!positionsContainer || !positionsList) return;
+
+    if (positionsData.positions.length === 0) {
+      this.showNoPositions();
+      return;
+    }
+
+    // Hide no positions state and show positions list
+    if (noPositionsState) noPositionsState.style.display = 'none';
+    positionsList.style.display = 'block';
+
+    // Generate positions HTML
+    const positionsHTML = positionsData.positions.map(position => {
+      const pnlClass = position.pnl >= 0 ? 'profit' : 'loss';
+      const pnlIcon = position.pnl >= 0 ? '+' : '';
+
+      // Create token icon HTML
+      const tokenIconHtml = position.tokenIcon ?
+        `<img src="${position.tokenIcon}" alt="${position.tokenSymbol}" class="position-token-icon-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+         <div class="position-token-icon-fallback" style="display: none;">${position.tokenSymbol.slice(0, 3).toUpperCase()}</div>` :
+        `<div class="position-token-icon-fallback">${position.tokenSymbol.slice(0, 3).toUpperCase()}</div>`;
+
+      return `
+        <div class="position-card">
+          <div class="position-header">
+            <div class="position-token-info">
+              <div class="position-token-icon">
+                ${tokenIconHtml}
+              </div>
+              <div class="position-token-details">
+                <h4>${position.tokenName || position.tokenSymbol}</h4>
+                <span class="position-token-symbol">${position.tokenSymbol}</span>
+                <span class="position-token-address">${position.tokenAddress.slice(0, 8)}...${position.tokenAddress.slice(-4)}</span>
+              </div>
+            </div>
+            <div class="position-pnl ${pnlClass}">
+              <div class="position-pnl-amount">${pnlIcon}$${position.pnl.toFixed(2)}</div>
+              <div class="position-pnl-percent">${pnlIcon}${position.pnlPercent.toFixed(2)}%</div>
+            </div>
+          </div>
+
+          <div class="position-details">
+            <div class="position-detail">
+              <span class="position-detail-label">Amount</span>
+              <span class="position-detail-value position-amount">${position.amount.toFixed(6)}</span>
+            </div>
+            <div class="position-detail">
+              <span class="position-detail-label">Avg Buy Price</span>
+              <span class="position-detail-value position-buy-price">$${position.averageBuyPrice.toFixed(6)}</span>
+            </div>
+            <div class="position-detail">
+              <span class="position-detail-label">Current Price</span>
+              <span class="position-detail-value position-current-price">$${position.currentPrice.toFixed(6)}</span>
+            </div>
+            <div class="position-detail">
+              <span class="position-detail-label">Total Cost</span>
+              <span class="position-detail-value">$${position.totalCost.toFixed(2)}</span>
+            </div>
+            <div class="position-detail">
+              <span class="position-detail-label">Current Value</span>
+              <span class="position-detail-value position-value">$${position.currentValue.toFixed(2)}</span>
+            </div>
+            <div class="position-detail">
+              <span class="position-detail-label">Trades</span>
+              <span class="position-detail-value">${position.transactionCount}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    positionsList.innerHTML = positionsHTML;
+
+    console.log(`💰 Updated positions display with ${positionsData.positions.length} positions, Total P&L: ${positionsData.totalPnL >= 0 ? '+' : ''}$${positionsData.totalPnL.toFixed(2)}`);
+  }
+
+  // Show no positions state
+  showNoPositions() {
+    const noPositionsState = document.getElementById('noPositionsState');
+    const positionsList = document.getElementById('positionsList');
+
+    if (noPositionsState) noPositionsState.style.display = 'block';
+    if (positionsList) {
+      positionsList.style.display = 'none';
+      positionsList.innerHTML = '';
+    }
+  }
+
   // Clear trade input
   clearTradeInput(tokenAddress) {
     const amountInput = document.getElementById(`amount-${tokenAddress}`);
@@ -1664,16 +2353,86 @@ class TournamentManager {
 
   // Start tournament updates
   startTournamentUpdates(tournamentId) {
-    // Update portfolio every 10 seconds
+    // Update portfolio and positions every 5 seconds for real-time experience
     this.portfolioUpdateInterval = setInterval(async () => {
       await this.loadUserPortfolio(tournamentId);
-    }, 10000);
+      await this.loadUserPositions(tournamentId);
+    }, 5000);
   }
 
   // Stop tournament updates
   stopTournamentUpdates() {
     if (this.portfolioUpdateInterval) {
       clearInterval(this.portfolioUpdateInterval);
+    }
+    if (this.tradingTokenPriceInterval) {
+      clearInterval(this.tradingTokenPriceInterval);
+    }
+  }
+
+  // Start aggressive price updates for trading tokens
+  startTradingTokenPriceUpdates() {
+    console.log('🔄 Starting aggressive price updates for trading tokens...');
+
+    // Update trading token prices every 3 seconds for ultra real-time experience
+    this.tradingTokenPriceInterval = setInterval(async () => {
+      await this.updateTradingTokenPrices();
+    }, 3000);
+
+    // Also update immediately
+    this.updateTradingTokenPrices();
+  }
+
+  // Update prices for all trading tokens in current tournament
+  async updateTradingTokenPrices() {
+    if (!this.currentTournament || !this.currentTournament.selectedTokens) {
+      return;
+    }
+
+    try {
+      const tokenAddresses = this.currentTournament.selectedTokens.map(token => token.address);
+
+      if (tokenAddresses.length === 0) {
+        return;
+      }
+
+      console.log(`🔄 Fetching real-time prices for ${tokenAddresses.length} trading tokens...`);
+
+      // Fetch latest prices from the server
+      const response = await fetch('/api/tokens/prices', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ tokenAddresses })
+      });
+
+      if (response.ok) {
+        const pricesData = await response.json();
+
+        // Update real-time prices cache
+        for (const [tokenAddress, priceInfo] of Object.entries(pricesData)) {
+          if (priceInfo && priceInfo.price) {
+            this.realTimePrices[tokenAddress] = {
+              price: priceInfo.price,
+              priceChange24h: priceInfo.priceChange || priceInfo.priceChange24h || 0,
+              priceChange6h: priceInfo.priceChange6h || 0,
+              volume24h: priceInfo.volume24h || 0,
+              liquidity: priceInfo.liquidity || 0,
+              lastUpdated: Date.now()
+            };
+          }
+        }
+
+        // Update price displays immediately
+        this.updatePriceDisplays();
+
+        console.log(`✅ Updated prices for ${Object.keys(pricesData).length} trading tokens`);
+      } else {
+        console.warn('⚠️ Failed to fetch trading token prices:', response.status);
+      }
+    } catch (error) {
+      console.error('❌ Error updating trading token prices:', error);
     }
   }
 
@@ -2011,6 +2770,13 @@ function closeTournamentInterface() {
 
 function closeJoinTournamentModal() {
   const modal = document.getElementById('joinTournamentModal');
+  if (modal) {
+    modal.classList.remove('active');
+  }
+}
+
+function closeTokenDetailsModal() {
+  const modal = document.getElementById('tokenDetailsModal');
   if (modal) {
     modal.classList.remove('active');
   }

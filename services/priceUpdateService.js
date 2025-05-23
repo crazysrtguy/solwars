@@ -32,7 +32,7 @@ class PriceUpdateService {
     this.clients = new Map(); // Map of client connections
     this.activeTournaments = new Map(); // Cache of active tournaments
     this.priceCache = new Map(); // Price cache
-    this.updateInterval = 30000; // 30 seconds
+    this.updateInterval = 15000; // 15 seconds for real-time experience
 
     this.setupWebSocketServer();
     this.setupPriceUpdates();
@@ -155,7 +155,8 @@ class PriceUpdateService {
 
   // Setup periodic price updates
   setupPriceUpdates() {
-    // Update prices every 30 seconds
+    // Update prices every 15 seconds for more real-time experience
+    this.updateInterval = 15000; // 15 seconds
     setInterval(async () => {
       await this.updateAllPrices();
     }, this.updateInterval);
@@ -257,10 +258,9 @@ class PriceUpdateService {
         });
 
         for (const participant of participants) {
-          let newBalance = participant.currentBalance;
           const portfolio = participant.portfolio || {};
 
-          // Calculate portfolio value with current prices
+          // Calculate current portfolio value with latest prices
           let portfolioValue = 0;
           for (const [tokenAddr, amount] of Object.entries(portfolio)) {
             if (latestPrices[tokenAddr] && amount > 0) {
@@ -268,21 +268,40 @@ class PriceUpdateService {
             }
           }
 
-          // Update participant balance (cash + portfolio value)
-          const cashBalance = participant.currentBalance - Object.values(portfolio).reduce((sum, amount) => {
-            return sum + (amount * (participant.lastPrices?.[tokenAddr] || 0));
-          }, 0);
+          // Get cash balance from transactions (more accurate approach)
+          // Calculate total spent on tokens from transaction history
+          const transactions = await prisma.tokenTransaction.findMany({
+            where: {
+              userId: participant.userId,
+              tournamentId: tournamentId
+            }
+          });
 
-          newBalance = Math.max(0, cashBalance + portfolioValue);
+          let totalSpent = 0;
+          let totalReceived = 0;
 
+          for (const tx of transactions) {
+            if (tx.type === 'BUY') {
+              totalSpent += tx.totalValue;
+            } else if (tx.type === 'SELL') {
+              totalReceived += tx.totalValue;
+            }
+          }
+
+          // Calculate current balance: starting balance - net spent + current portfolio value
+          const netSpent = totalSpent - totalReceived;
+          const newBalance = Math.max(0, participant.startingBalance - netSpent + portfolioValue);
+
+          // Only update if there's a significant change (avoid unnecessary DB writes)
           if (Math.abs(newBalance - participant.currentBalance) > 0.01) {
             await prisma.tournamentParticipant.update({
               where: { id: participant.id },
               data: {
-                currentBalance: newBalance,
-                lastPrices: latestPrices
+                currentBalance: newBalance
               }
             });
+
+            console.log(`💰 Updated ${participant.walletAddress.slice(0, 8)}... balance: $${participant.currentBalance.toFixed(2)} → $${newBalance.toFixed(2)}`);
           }
         }
 
@@ -505,10 +524,10 @@ class PriceUpdateService {
   startPriceUpdates() {
     console.log('🔄 Starting automatic price updates...');
 
-    // Update prices every 30 seconds
+    // Update prices every 15 seconds for more real-time experience
     this.priceUpdateInterval = setInterval(async () => {
       await this.updateAllTokenPrices();
-    }, 30000);
+    }, 15000);
 
     // Also update immediately
     this.updateAllTokenPrices();

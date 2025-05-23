@@ -14,6 +14,7 @@ const SwarsTokenService = require('./services/swarsTokenService');
 const DexScreenerService = require('./services/dexScreenerService');
 const PriceUpdateService = require('./services/priceUpdateService');
 const TradingService = require('./services/tradingService');
+const TournamentScheduler = require('./services/tournamentScheduler');
 
 const app = express();
 const server = http.createServer(app);
@@ -27,6 +28,7 @@ const swarsService = new SwarsTokenService();
 const dexScreenerService = new DexScreenerService();
 const priceService = new PriceUpdateService(server);
 const tradingService = new TradingService(priceService);
+const tournamentScheduler = new TournamentScheduler(tokenService);
 
 // Middleware
 app.use(cors());
@@ -978,6 +980,219 @@ app.get('/api/trading/history/:tournamentId/:walletAddress', async (req, res) =>
   }
 });
 
+// Get detailed positions with buy prices and P&L
+app.get('/api/trading/positions/:tournamentId/:walletAddress', async (req, res) => {
+  try {
+    const { tournamentId, walletAddress } = req.params;
+
+    if (!tournamentId || !walletAddress) {
+      return res.status(400).json({ error: 'Tournament ID and wallet address required' });
+    }
+
+    console.log(`📊 Getting detailed positions for ${walletAddress} in tournament ${tournamentId}`);
+
+    // Get user
+    const user = await prisma.user.findUnique({
+      where: { walletAddress }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Get tournament data for token metadata
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId }
+    });
+
+    // Get all transactions for this user in this tournament
+    const transactions = await prisma.tokenTransaction.findMany({
+      where: {
+        userId: user.id,
+        tournamentId
+      },
+      orderBy: {
+        timestamp: 'asc'
+      }
+    });
+
+    if (transactions.length === 0) {
+      return res.status(200).json({
+        success: true,
+        positions: [],
+        totalPositions: 0,
+        totalValue: 0,
+        totalPnL: 0
+      });
+    }
+
+    // Calculate positions with detailed buy price tracking
+    const positionMap = new Map();
+
+    for (const tx of transactions) {
+      const { tokenAddress, type, amount, price, totalValue, timestamp } = tx;
+
+      if (!positionMap.has(tokenAddress)) {
+        positionMap.set(tokenAddress, {
+          tokenAddress,
+          tokenSymbol: tx.tokenSymbol,
+          totalAmount: 0,
+          totalCost: 0,
+          averageBuyPrice: 0,
+          transactions: [],
+          firstBuyTime: null,
+          lastTradeTime: null
+        });
+      }
+
+      const position = positionMap.get(tokenAddress);
+
+      if (type === 'BUY') {
+        position.totalAmount += amount;
+        position.totalCost += totalValue;
+        position.averageBuyPrice = position.totalCost / position.totalAmount;
+
+        if (!position.firstBuyTime) {
+          position.firstBuyTime = timestamp;
+        }
+      } else if (type === 'SELL') {
+        // For sells, reduce position proportionally
+        const sellRatio = amount / position.totalAmount;
+        position.totalCost -= position.totalCost * sellRatio;
+        position.totalAmount -= amount;
+
+        if (position.totalAmount > 0) {
+          position.averageBuyPrice = position.totalCost / position.totalAmount;
+        }
+      }
+
+      position.transactions.push({
+        type,
+        amount,
+        price,
+        totalValue,
+        timestamp
+      });
+
+      position.lastTradeTime = timestamp;
+    }
+
+    // Filter out positions with zero or negative amounts
+    const activePositions = Array.from(positionMap.values()).filter(pos => pos.totalAmount > 0);
+
+    // Get current prices for all tokens
+    const tokenAddresses = activePositions.map(pos => pos.tokenAddress);
+    const currentPrices = {};
+
+    for (const address of tokenAddresses) {
+      currentPrices[address] = priceService.getCurrentPrice(address) || 0;
+    }
+
+    // Get token metadata from tournament or fetch from DexScreener
+    const tokenMetadata = {};
+
+    // First try to get metadata from tournament
+    if (tournament && tournament.tokenMetadata) {
+      for (const address of tokenAddresses) {
+        if (tournament.tokenMetadata[address]) {
+          tokenMetadata[address] = tournament.tokenMetadata[address];
+        }
+      }
+    }
+
+    // For missing metadata, try to get from selected tokens
+    if (tournament && tournament.selectedTokens) {
+      for (const address of tokenAddresses) {
+        if (!tokenMetadata[address]) {
+          const selectedToken = tournament.selectedTokens.find(t => t.address === address);
+          if (selectedToken) {
+            tokenMetadata[address] = selectedToken;
+          }
+        }
+      }
+    }
+
+    // For still missing metadata, fetch from DexScreener
+    const missingMetadata = tokenAddresses.filter(addr => !tokenMetadata[addr]);
+    if (missingMetadata.length > 0) {
+      try {
+        console.log(`🔍 Fetching metadata for ${missingMetadata.length} tokens from DexScreener...`);
+        const enrichedData = await dexScreenerService.getComprehensiveTokenData(missingMetadata);
+
+        for (const tokenData of enrichedData) {
+          tokenMetadata[tokenData.address] = tokenData;
+        }
+      } catch (error) {
+        console.warn('⚠️ Failed to fetch token metadata from DexScreener:', error.message);
+      }
+    }
+
+    // Calculate detailed position data with P&L and rich metadata
+    const detailedPositions = activePositions.map(position => {
+      const currentPrice = currentPrices[position.tokenAddress] || 0;
+      const currentValue = position.totalAmount * currentPrice;
+      const pnl = currentValue - position.totalCost;
+      const pnlPercent = position.totalCost > 0 ? (pnl / position.totalCost) * 100 : 0;
+
+      // Get token metadata
+      const metadata = tokenMetadata[position.tokenAddress] || {};
+
+      return {
+        tokenAddress: position.tokenAddress,
+        tokenSymbol: position.tokenSymbol,
+        tokenName: metadata.name || metadata.tokenName || 'Unknown Token',
+        tokenIcon: metadata.icon || metadata.image || metadata.imageUrl || null,
+        amount: position.totalAmount,
+        averageBuyPrice: position.averageBuyPrice,
+        currentPrice,
+        totalCost: position.totalCost,
+        currentValue,
+        pnl,
+        pnlPercent,
+        firstBuyTime: position.firstBuyTime,
+        lastTradeTime: position.lastTradeTime,
+        transactionCount: position.transactions.length,
+        transactions: position.transactions.slice(-5), // Last 5 transactions
+        // Additional metadata
+        marketCap: metadata.marketCap,
+        volume24h: metadata.volume24h,
+        priceChange24h: metadata.priceChange24h,
+        website: metadata.website,
+        twitter: metadata.twitter
+      };
+    });
+
+    // Sort by current value (largest positions first)
+    detailedPositions.sort((a, b) => b.currentValue - a.currentValue);
+
+    // Calculate totals
+    const totalValue = detailedPositions.reduce((sum, pos) => sum + pos.currentValue, 0);
+    const totalCost = detailedPositions.reduce((sum, pos) => sum + pos.totalCost, 0);
+    const totalPnL = totalValue - totalCost;
+    const totalPnLPercent = totalCost > 0 ? (totalPnL / totalCost) * 100 : 0;
+
+    console.log(`✅ Found ${detailedPositions.length} active positions with total value $${totalValue.toFixed(2)}`);
+
+    res.status(200).json({
+      success: true,
+      positions: detailedPositions,
+      totalPositions: detailedPositions.length,
+      totalValue,
+      totalCost,
+      totalPnL,
+      totalPnLPercent,
+      lastUpdated: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Positions API Error:', error);
+    res.status(500).json({
+      error: 'Failed to get positions',
+      details: error.message
+    });
+  }
+});
+
 // ===== PAYMENT ENDPOINTS =====
 
 // Get treasury wallet address
@@ -1110,6 +1325,10 @@ server.listen(PORT, async () => {
   // Start automatic price updates
   console.log(`\n🔄 Starting automatic price updates...`);
   priceService.startPriceUpdates();
+
+  // Start tournament scheduler
+  console.log(`\n⏰ Starting tournament scheduler...`);
+  tournamentScheduler.start();
 
   console.log(`\n🎉 Ready for epic trading battles!`);
   console.log(`\n📱 Open http://localhost:${PORT} to start trading!`);
