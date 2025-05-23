@@ -65,372 +65,178 @@
       <header>
         <div class="logo">
           <h1>SolWars</h1>
-          <span>Galactic Trading</span>
+          <span>Epic Trading Tournaments</span>
         </div>
         <div class="header-actions">
-          <div class="tournament-counter">Imperial Deadline: <span id="cyclesLeftDisplay">18</span> cycles left</div>
+          <div id="connectionStatus" class="connection-status disconnected">
+            <i class="fas fa-wifi"></i> Connecting...
+          </div>
+          <div id="swarsBalance" class="swars-balance" style="display: none;">
+            <i class="fas fa-coins"></i>
+            <span id="swarsAmount">0</span> SWARS
+          </div>
           <div id="userInfo" class="user-info" style="display: none;"></div>
           <button id="authButton" class="btn btn-primary">Connect Wallet</button>
+          <button id="dailyBonusBtn" class="btn btn-accent" style="display: none;">
+            <i class="fas fa-gift"></i> Daily Bonus
+          </button>
+          <button class="how-to-play-header-btn" onclick="toggleHowToPlayHeader()">
+            <i class="fas fa-info-circle"></i>
+            How to Play
+            <i class="fas fa-chevron-down" id="howToPlayChevron"></i>
+          </button>
           <button id="leaderboardBtn" class="btn btn-outline">Leaderboard</button>
-          <button id="newGameBtn" class="btn btn-accent">New Game</button>
+          <button id="refreshTournamentsBtn" class="btn btn-secondary">
+            <i class="fas fa-sync-alt"></i> Refresh
+          </button>
           <button class="btn btn-sound" id="soundToggleBtn">
             <i class="fas fa-volume-up" id="soundIcon"></i>
           </button>
         </div>
       </header>
 
-      <div class="status-bar">
-        <div class="location-name" id="locationDisplay">Coruscant</div>
-        <div class="day-counter">Cycle <span id="dayDisplay">5</span>/<span id="maxDaysDisplay">30</span></div>
-        <div class="status-item">
-          <span>Credits</span>
-          <span id="walletDisplay">1,423.55</span>
+      <!-- Expandable How to Play Section -->
+      <div class="how-to-play-header-section" id="howToPlayHeaderSection">
+        <div class="how-to-play-content">
+          <div class="play-steps-header">
+            <div class="play-step-header">
+              <div class="step-number-header">1</div>
+              <div class="step-content-header">
+                <h4>Connect Wallet</h4>
+                <p>Link your Phantom wallet for authentication and tournament entry</p>
+              </div>
+            </div>
+
+            <div class="play-step-header">
+              <div class="step-number-header">2</div>
+              <div class="step-content-header">
+                <h4>Join Tournament</h4>
+                <p>Choose Daily, Flash, or Weekly tournaments with SOL or SWARS entry</p>
+              </div>
+            </div>
+
+            <div class="play-step-header">
+              <div class="step-number-header">3</div>
+              <div class="step-content-header">
+                <h4>Trade Tokens</h4>
+                <p>Buy/sell real Solana tokens with $10K virtual portfolio</p>
+              </div>
+            </div>
+
+            <div class="play-step-header">
+              <div class="step-number-header">4</div>
+              <div class="step-content-header">
+                <h4>Win Prizes</h4>
+                <p>Top traders earn SOL prizes and SWARS token bonuses</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="features-header">
+            <div class="feature-header">
+              <i class="fas fa-coins"></i>
+              <span><strong>Real Prices</strong> - Live DexScreener data with icons & banners</span>
+            </div>
+            <div class="feature-header">
+              <i class="fas fa-trophy"></i>
+              <span><strong>SOL Prizes</strong> - Win real SOL based on performance</span>
+            </div>
+            <div class="feature-header">
+              <i class="fas fa-gem"></i>
+              <span><strong>SWARS Rewards</strong> - Daily bonuses & achievements</span>
+            </div>
+            <div class="feature-header">
+              <i class="fas fa-chart-line"></i>
+              <span><strong>Live Trading</strong> - Real-time updates & leaderboards</span>
+            </div>
+          </div>
         </div>
-        <div class="status-item">
-          <span>Debt</span>
-          <span id="debtDisplay">3,500.00</span>
+      </div>
+
+      <div class="tournament-banner">
+        <div class="banner-content">
+          <h2>🏆 Epic Solana Trading Tournaments</h2>
+          <p>Trade real tokens, win real SOL, earn SWARS rewards!</p>
         </div>
-        <div class="status-item">
-          <span>Net Worth</span>
-          <span id="netWorthDisplay">2,784.92</span>
-        </div>
-        <div class="status-item">
-          <span>Rank</span>
-          <span id="rankDisplay">#17</span>
+        <div class="banner-stats">
+          <div class="stat-item">
+            <span class="stat-value" id="activeTournamentsCount">0</span>
+            <span class="stat-label">Active Tournaments</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value" id="totalPrizePool">0.000</span>
+            <span class="stat-label">Total Prize Pool (SOL)</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value" id="totalParticipants">0</span>
+            <span class="stat-label">Active Traders</span>
+          </div>
         </div>
       </div>
 
       <div class="main-layout">
-        <!-- Left Sidebar -->
-        <div class="left-sidebar">
-          <div class="card">
-            <h2>
-              <i class="fas fa-globe"></i>
-              Star Systems
-            </h2>
-            <ul class="locations-list" id="locationsList">
-              <li class="location-item active">
-                <div class="location-info">
-                  <i class="fas fa-city"></i> Coruscant
-                </div>
-                <span class="location-label">Current</span>
-              </li>
-              <li class="location-item">
-                <div class="location-info">
-                  <i class="fas fa-mountain"></i> Tatooine
-                </div>
-                <div class="badge badge-success">+15% KYBER</div>
-              </li>
-              <li class="location-item">
-                <div class="location-info">
-                  <i class="fas fa-tree"></i> Endor
-                </div>
-                <div class="badge badge-info">+12% BANTHA</div>
-              </li>
-              <li class="location-item">
-                <div class="location-info">
-                  <i class="fas fa-snowflake"></i> Hoth
-                </div>
-                <div class="badge badge-warning">+8% WAMPA</div>
-              </li>
-              <li class="location-item">
-                <div class="location-info">
-                  <i class="fas fa-cloud"></i> Bespin
-                </div>
-                <div class="badge badge-danger">High Risk</div>
-              </li>
-              <li class="location-item">
-                <div class="location-info">
-                  <i class="fas fa-water"></i> Kamino
-                </div>
-                <div class="badge badge-warning">Clone Hub</div>
-              </li>
-            </ul>
-
-            <div class="location-details">
-              <div class="location-advantage">
-                <i class="fas fa-info-circle"></i> Coruscant is the central hub with standard pricing.
-              </div>
-            </div>
-          </div>
-
-          <div class="card">
-            <h2>
-              <i class="fas fa-chart-pie"></i>
-              My Inventory
-            </h2>
-            <div id="inventoryList">
-              <!-- KYBER -->
-              <div class="inventory-item" data-token="KYBER">
-                <div class="coin-icon KYBER">KB</div>
-                <div class="inventory-item-info">
-                  <div class="inventory-item-name">KYBER</div>
-                  <div class="inventory-item-details">
-                    <span>1,250,000 crystals</span>
-                    <span class="profit-positive">+15.4%</span>
-                  </div>
-                </div>
-                <div class="inventory-item-actions">
-                  <button class="btn btn-outline btn-small sell-btn" data-token="KYBER">Sell</button>
-                </div>
-              </div>
-
-              <!-- WAMPA -->
-              <div class="inventory-item" data-token="WAMPA">
-                <div class="coin-icon WAMPA">WP</div>
-                <div class="inventory-item-info">
-                  <div class="inventory-item-name">WAMPA</div>
-                  <div class="inventory-item-details">
-                    <span>520 pelts</span>
-                    <span class="profit-negative">-3.8%</span>
-                  </div>
-                </div>
-                <div class="inventory-item-actions">
-                  <button class="btn btn-outline btn-small sell-btn" data-token="WAMPA">Sell</button>
-                </div>
-              </div>
-
-              <!-- TROOPER -->
-              <div class="inventory-item" data-token="TROOPER">
-                <div class="coin-icon TROOPER">TR</div>
-                <div class="inventory-item-info">
-                  <div class="inventory-item-name">TROOPER</div>
-                  <div class="inventory-item-details">
-                    <span>4,800 units</span>
-                    <span class="profit-positive">+1.2%</span>
-                  </div>
-                </div>
-                <div class="inventory-item-actions">
-                  <button class="btn btn-outline btn-small sell-btn" data-token="TROOPER">Sell</button>
-                </div>
-              </div>
-            </div>
-
-            <div class="wallet-capacity">
-              <span>Cargo space: 25/100</span>
-              <div class="progress-container">
-                <div class="progress-bar" style="width: 25%"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Main Content Area -->
-        <div class="content-area">
+        <!-- Tournaments Section -->
+        <div class="tournaments-section">
           <div class="card">
             <div class="grid-header">
               <h2>
-                <i class="fas fa-chart-line"></i>
-                Galactic Market
+                <i class="fas fa-trophy"></i>
+                Active Tournaments
               </h2>
               <div class="grid-header-actions">
-                <div class="market-search">
-                  <i class="fas fa-search"></i>
-                  <input type="text" placeholder="Search tokens...">
+                <div class="tournament-filters">
+                  <button class="filter-btn active" data-filter="all">All</button>
+                  <button class="filter-btn" data-filter="daily">Daily</button>
+                  <button class="filter-btn" data-filter="flash">Flash</button>
+                  <button class="filter-btn" data-filter="weekly">Weekly</button>
+                  <button class="filter-btn" data-filter="my-tournaments" id="myTournamentsBtn" style="display: none;">
+                    <i class="fas fa-user"></i> My Tournaments
+                  </button>
                 </div>
-
-                <div class="dropdown" id="sortDropdown">
-                  <div class="dropdown-toggle">
-                    <span>Sort by: Price</span>
-                    <i class="fas fa-chevron-down"></i>
-                  </div>
-                  <div class="dropdown-menu">
-                    <div class="dropdown-item">Sort by: Name</div>
-                    <div class="dropdown-item">Sort by: Price</div>
-                    <div class="dropdown-item">Sort by: 24h Change</div>
-                    <div class="dropdown-item">Sort by: Volume</div>
-                  </div>
+                <div class="tournament-actions">
+                  <button id="createInstantTournamentBtn" class="btn btn-accent instant-tournament-btn">
+                    <i class="fas fa-bolt"></i> Create Instant Tournament
+                  </button>
                 </div>
               </div>
             </div>
 
-            <div class="market-tabs">
-              <button class="market-tab active">All Tokens</button>
-              <button class="market-tab">My Holdings</button>
-              <button class="market-tab">Hot on <span class="location-name-tab"></span></button>
-              <button class="market-tab">Trending</button>
-            </div>
-
-            <div class="market-list" id="marketList">
-              <!-- KYBER -->
-              <div class="market-item" data-token="KYBER">
-                <div class="coin-icon KYBER">KB</div>
-                <div class="market-item-info">
-                  <div class="market-item-name">
-                    KYBER
-                    <span class="market-item-trend trend-up">
-                      <i class="fas fa-arrow-up"></i> 15.4%
-                    </span>
-                  </div>
-                  <div class="market-item-price">0.00000234 CR per crystal</div>
-                </div>
-                <div class="market-item-actions">
-                  <button class="btn btn-secondary btn-small buy-btn" data-token="KYBER">Buy</button>
-                  <button class="btn btn-danger btn-small sell-btn" data-token="KYBER">Sell</button>
-                </div>
-              </div>
-
-              <!-- BANTHA -->
-              <div class="market-item" data-token="BANTHA">
-                <div class="coin-icon BANTHA">BT</div>
-                <div class="market-item-info">
-                  <div class="market-item-name">
-                    BANTHA
-                    <span class="market-item-trend trend-down">
-                      <i class="fas fa-arrow-down"></i> 3.2%
-                    </span>
-                  </div>
-                  <div class="market-item-price">0.00721 CR per herd</div>
-                </div>
-                <div class="market-item-actions">
-                  <button class="btn btn-secondary btn-small buy-btn" data-token="BANTHA">Buy</button>
-                  <button class="btn btn-danger btn-small sell-btn" data-token="BANTHA">Sell</button>
-                </div>
-              </div>
-
-              <!-- WAMPA -->
-              <div class="market-item" data-token="WAMPA">
-                <div class="coin-icon WAMPA">WP</div>
-                <div class="market-item-info">
-                  <div class="market-item-name">
-                    WAMPA
-                    <span class="market-item-trend trend-down">
-                      <i class="fas fa-arrow-down"></i> 3.8%
-                    </span>
-                  </div>
-                  <div class="market-item-price">0.00452 CR per pelt</div>
-                </div>
-                <div class="market-item-actions">
-                  <button class="btn btn-secondary btn-small buy-btn" data-token="WAMPA">Buy</button>
-                  <button class="btn btn-danger btn-small sell-btn" data-token="WAMPA">Sell</button>
-                </div>
-              </div>
-
-              <!-- TROOPER -->
-              <div class="market-item" data-token="TROOPER">
-                <div class="coin-icon TROOPER">TR</div>
-                <div class="market-item-info">
-                  <div class="market-item-name">
-                    TROOPER
-                    <span class="market-item-trend trend-up">
-                      <i class="fas fa-arrow-up"></i> 1.2%
-                    </span>
-                  </div>
-                  <div class="market-item-price">0.000098 CR per unit</div>
-                </div>
-                <div class="market-item-actions">
-                  <button class="btn btn-secondary btn-small buy-btn" data-token="TROOPER">Buy</button>
-                  <button class="btn btn-danger btn-small sell-btn" data-token="TROOPER">Sell</button>
-                </div>
-              </div>
-
-              <!-- JAWA -->
-              <div class="market-item" data-token="JAWA">
-                <div class="coin-icon JAWA">JW</div>
-                <div class="market-item-info">
-                  <div class="market-item-name">
-                    JAWA
-                    <span class="market-item-trend trend-neutral">
-                      <i class="fas fa-minus"></i> 0.1%
-                    </span>
-                  </div>
-                  <div class="market-item-price">0.00183 CR per trader</div>
-                </div>
-                <div class="market-item-actions">
-                  <button class="btn btn-secondary btn-small buy-btn" data-token="JAWA">Buy</button>
-                  <button class="btn btn-danger btn-small sell-btn" data-token="JAWA">Sell</button>
-                </div>
+            <div id="tournamentsContainer" class="tournaments-grid">
+              <!-- Tournament cards will be dynamically loaded here -->
+              <div class="loading-state">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Loading epic tournaments...</p>
               </div>
             </div>
           </div>
         </div>
+
+
 
         <!-- Right Sidebar -->
         <div class="right-sidebar">
           <div class="card">
             <h2>
-              <i class="fas fa-trophy"></i>
-              Imperial Ranking
+              <i class="fas fa-crown"></i>
+              Top Traders
             </h2>
-            <div class="tournament-info">
-              <div>
-                <div class="tournament-name">Galactic Trade Wars #12</div>
-                <div class="tournament-time">Ends in 1 day, 8 hours</div>
-              </div>
-              <div class="tournament-rank">#17</div>
-            </div>
-
-            <div class="portfolio-section">
-              <div class="portfolio-item">
-                <div class="portfolio-token">
-                  <i class="fas fa-wallet"></i>
-                  <div style="margin-left: 10px;">
-                    <div class="portfolio-token-name">Total Value</div>
-                  </div>
-                </div>
-                <div class="portfolio-value">
-                  <div class="portfolio-value-sol">1,423.55 CR</div>
-                </div>
-              </div>
-
-              <div class="portfolio-item">
-                <div class="portfolio-token">
-                  <i class="fas fa-coins"></i>
-                  <div style="margin-left: 10px;">
-                    <div class="portfolio-token-name">Tokens Value</div>
-                  </div>
-                </div>
-                <div class="portfolio-value">
-                  <div class="portfolio-value-sol">5.75 CR</div>
-                </div>
-              </div>
-
-              <div class="portfolio-item">
-                <div class="portfolio-token">
-                  <i class="fas fa-chart-line"></i>
-                  <div style="margin-left: 10px;">
-                    <div class="portfolio-token-name">Profit/Loss</div>
-                  </div>
-                </div>
-                <div class="portfolio-value">
-                  <div class="portfolio-value-sol profit-positive">+784.92 CR</div>
-                </div>
+            <div class="top-traders-list" id="topTradersList">
+              <div class="loading-state">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Loading top traders...</p>
               </div>
             </div>
-
-            <button class="btn btn-primary btn-block" style="margin-top: 10px;">View Leaderboard</button>
           </div>
 
           <div class="card">
             <h2>
-              <i class="fas fa-money-bill-wave"></i>
-              Hutt Loans
+              <i class="fas fa-chart-line"></i>
+              Live Market
             </h2>
-            <div class="debt-section">
-              <div class="coin-projection" style="margin-bottom: 15px;">
-                <div class="projection-header">Loan Status</div>
-                <div class="projection-item">
-                  <span>Current Debt:</span>
-                  <span id="huttDebtDisplay">2,000.00 CR</span>
-                </div>
-                <div class="projection-item">
-                  <span>Interest Rate:</span>
-                  <span>5% per cycle</span>
-                </div>
-                <div class="projection-item">
-                  <span>Next Interest:</span>
-                  <span id="nextInterestDisplay">100.00 CR</span>
-                </div>
-              </div>
-              <p>Manage your debt with the Hutts:</p>
-              <div class="transaction-row">
-                <div class="transaction-input">
-                  <input type="number" id="debtAmount" placeholder="Amount" min="0">
-                </div>
-              </div>
-              <div class="debt-controls">
-                <button id="repayBtn" class="btn btn-secondary btn-small btn-block">Repay</button>
-                <button id="borrowBtn" class="btn btn-danger btn-small btn-block">Borrow</button>
+            <div class="live-market-list" id="liveMarketList">
+              <div class="loading-state">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Loading market data...</p>
               </div>
             </div>
           </div>
@@ -438,23 +244,32 @@
           <div class="card">
             <h2>
               <i class="fas fa-bell"></i>
-              Events
+              Tournament News
             </h2>
-            <div class="events-list" id="eventsList">
-              <div class="event-item highlight">
-                Cycle 5: Imperial forces seized WAMPA shipments! Price dropped temporarily.
+            <div class="tournament-news" id="tournamentNews">
+              <div class="news-item">
+                <div class="news-time">2 min ago</div>
+                <div class="news-content">
+                  <strong>Flash Tournament</strong> starting in 13 minutes! Low entry fee of 0.005 SOL.
+                </div>
               </div>
-              <div class="event-item">
-                Cycle 4: KYBER jumped 12% in the last few hours!
+              <div class="news-item">
+                <div class="news-time">15 min ago</div>
+                <div class="news-content">
+                  New trader <strong>GalacticWhale</strong> just joined the Daily Championship!
+                </div>
               </div>
-              <div class="event-item">
-                Cycle 3: You traveled to Tatooine and sold KYBER for a profit.
+              <div class="news-item">
+                <div class="news-time">1 hour ago</div>
+                <div class="news-content">
+                  <strong>SOL</strong> price up 5.2% - great time for tournament prizes!
+                </div>
               </div>
-              <div class="event-item">
-                Cycle 2: You purchased 1,250,000 KYBER crystals.
-              </div>
-              <div class="event-item">
-                Cycle 1: Welcome to SolWars: Galactic Trading!
+              <div class="news-item">
+                <div class="news-time">2 hours ago</div>
+                <div class="news-content">
+                  Weekly Championship prize pool now at <strong>2.5 SOL</strong>!
+                </div>
               </div>
             </div>
           </div>
@@ -464,56 +279,28 @@
               <i class="fas fa-lightbulb"></i>
               Trading Tips
             </h2>
-            <div class="event-item">
-              <strong>Price Advantage:</strong> KYBER is selling for 15% more on Tatooine! Consider traveling there to sell.
-            </div>
-            <div class="event-item">
-              <strong>Buy Low:</strong> BANTHA prices are down 3.2% today. Could be a good time to buy.
+            <div class="trading-tips">
+              <div class="tip-item">
+                <i class="fas fa-chart-line"></i>
+                <div>
+                  <strong>Diversify:</strong> Don't put all your virtual portfolio into one token. Spread risk across multiple assets.
+                </div>
+              </div>
+              <div class="tip-item">
+                <i class="fas fa-clock"></i>
+                <div>
+                  <strong>Timing:</strong> Watch for price movements and news. Quick reactions can lead to big profits.
+                </div>
+              </div>
+              <div class="tip-item">
+                <i class="fas fa-trophy"></i>
+                <div>
+                  <strong>Leaderboard:</strong> Focus on percentage gains, not just total value. Consistency wins tournaments.
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Travel Confirmation Modal -->
-  <div class="modal-overlay" id="travelModal">
-    <div class="modal">
-      <button class="close-modal" id="closeTravelModal">&times;</button>
-      <h2>Travel to Tatooine?</h2>
-      <p>Traveling to Tatooine will advance the game by 1 cycle. Your KYBER crystals will sell for 15% more in this location.</p>
-      <div class="coin-projection" style="margin-bottom: 20px;">
-        <div class="projection-header">Profit Projection</div>
-        <div class="projection-item">
-          <span>Current KYBER Value:</span>
-          <span>2.93 CR</span>
-        </div>
-        <div class="projection-item">
-          <span>Value on Tatooine:</span>
-          <span class="profit-positive">3.36 CR (+0.43)</span>
-        </div>
-      </div>
-      <div class="modal-actions">
-        <button class="btn btn-outline" id="cancelTravelBtn">Stay Here</button>
-        <button class="btn btn-primary" id="confirmTravelBtn"><i class="fas fa-rocket"></i> Launch</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Transaction Confirmation Modal -->
-  <div class="modal-overlay" id="transactionModal">
-    <div class="modal">
-      <button class="close-modal" id="closeTransactionModal">&times;</button>
-      <h2>Buy/Sell Token</h2>
-      <p>Enter transaction details</p>
-
-      <div class="coin-projection" id="txProjection" style="margin: 20px 0;">
-        <!-- This will be populated dynamically -->
-      </div>
-
-      <div class="modal-actions">
-        <button class="btn btn-outline" id="cancelTxBtn">Cancel</button>
-        <button class="btn btn-primary" id="confirmTxBtn">Confirm</button>
       </div>
     </div>
   </div>
@@ -542,43 +329,165 @@
     </div>
   </div>
 
-  <!-- Event Modal -->
-  <div class="modal-overlay" id="eventModal">
+  <!-- Tournament Interface Modal -->
+  <div class="modal-overlay modal-large" id="tournamentInterfaceModal">
+    <div class="modal-content">
+      <button class="close-modal" onclick="closeTournamentInterface()">&times;</button>
+
+      <div class="tournament-interface">
+        <!-- Tournament Status Bar -->
+        <div class="tournament-status-bar">
+          <div class="status-item">
+            <span class="label">Time Remaining</span>
+            <span class="value" id="tournamentTimeRemaining">--:--:--</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Portfolio Value</span>
+            <span class="value" id="tournamentBalance">$0.00</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Current Rank</span>
+            <span class="value" id="tournamentRank">#--</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Profit/Loss</span>
+            <span class="value" id="tournamentProfitLoss">$0.00</span>
+          </div>
+        </div>
+
+        <!-- Main Trading Content -->
+        <div class="tournament-main-content">
+          <!-- Trading Panel -->
+          <div class="trading-panel">
+            <h3>🚀 Live Trading</h3>
+            <div class="tournament-tokens-list" id="tournamentTokens">
+              <!-- Token trading cards will be loaded here -->
+              <div class="loading-state">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Loading trading tokens...</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Leaderboard Panel -->
+          <div class="leaderboard-panel">
+            <h3>🏆 Live Leaderboard</h3>
+            <div class="tournament-leaderboard" id="tournamentLeaderboard">
+              <!-- Leaderboard will be loaded here -->
+              <div class="loading-state">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Loading leaderboard...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Join Tournament Modal -->
+  <div class="modal-overlay" id="joinTournamentModal">
     <div class="modal">
-      <button class="close-modal" id="closeEventModal">&times;</button>
-      <h2>Galactic Event!</h2>
-      <p id="eventMessage">Imperial forces have seized WAMPA shipments! The price has dropped by 30% temporarily.</p>
+      <button class="close-modal" onclick="closeJoinTournamentModal()">&times;</button>
+      <h2>Join Tournament</h2>
+      <div id="joinTournamentContent">
+        <!-- Content will be populated dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- How to Play Modal -->
+  <div class="modal-overlay" id="howToPlayModal">
+    <div class="modal">
+      <button class="close-modal" onclick="closeHowToPlayModal()">&times;</button>
+      <h2><i class="fas fa-info-circle"></i> How to Play SolWars</h2>
+
+      <div class="how-to-play-modal">
+        <div class="play-steps">
+          <div class="play-step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <h3>Connect Your Wallet</h3>
+              <p>Connect your Phantom wallet to join tournaments and start trading. Your wallet is used for authentication and tournament entry fees.</p>
+            </div>
+          </div>
+
+          <div class="play-step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <h3>Join a Tournament</h3>
+              <p>Choose from Daily, Flash, or Weekly tournaments. Pay entry fees in SOL or use SWARS tokens for bonus jackpot chances.</p>
+            </div>
+          </div>
+
+          <div class="play-step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <h3>Trade Real Tokens</h3>
+              <p>Buy and sell real Solana tokens with live prices from DexScreener. Start with a $10,000 virtual portfolio and trade strategically.</p>
+            </div>
+          </div>
+
+          <div class="play-step">
+            <div class="step-number">4</div>
+            <div class="step-content">
+              <h3>Win Prizes</h3>
+              <p>Top traders win SOL prizes and SWARS token bonuses. Climb the leaderboard by maximizing your portfolio value!</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="features-section">
+          <h3>🚀 Platform Features</h3>
+          <div class="features-grid">
+            <div class="feature-card">
+              <i class="fas fa-coins"></i>
+              <h4>Real Token Prices</h4>
+              <p>Trade with live Solana token prices, complete with icons, banners, and comprehensive market data from DexScreener.</p>
+            </div>
+
+            <div class="feature-card">
+              <i class="fas fa-trophy"></i>
+              <h4>SOL Prizes</h4>
+              <p>Win real SOL based on your trading performance and final ranking. Prize pools grow with more participants.</p>
+            </div>
+
+            <div class="feature-card">
+              <i class="fas fa-gem"></i>
+              <h4>SWARS Rewards</h4>
+              <p>Earn SWARS tokens through daily bonuses, tournament achievements, and special events. Use them for bonus entries.</p>
+            </div>
+
+            <div class="feature-card">
+              <i class="fas fa-chart-line"></i>
+              <h4>Live Trading</h4>
+              <p>Real-time price updates, instant trade execution, portfolio tracking, and live leaderboards for competitive trading.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="tips-section">
+          <h3>💡 Pro Tips</h3>
+          <ul class="tips-list">
+            <li><strong>Diversify:</strong> Don't put all your portfolio into one token. Spread risk across multiple assets.</li>
+            <li><strong>Watch Trends:</strong> Look for trending tokens with high volume and recent price movements.</li>
+            <li><strong>Time Your Trades:</strong> Quick reactions to market movements can lead to big profits.</li>
+            <li><strong>Use Social Links:</strong> Check token websites and social media for news and updates.</li>
+            <li><strong>Monitor Liquidity:</strong> Higher liquidity means easier trading with less slippage.</li>
+          </ul>
+        </div>
+      </div>
+
       <div class="modal-actions">
-        <button class="btn btn-primary" id="eventOkBtn">OK</button>
+        <button class="btn btn-primary" onclick="closeHowToPlayModal()">Got It! Let's Trade</button>
       </div>
     </div>
   </div>
 
   <div class="notification" id="notification"></div>
 
-  <!-- Space Travel Animation Overlay -->
-  <div class="space-travel-overlay" id="spaceTravelOverlay">
-    <div class="space-travel-container" id="spaceTravelContainer">
-      <!-- Video-based travel animation -->
-      <video id="travelVideo" class="travel-video" playsinline>
-        <source src="travel.mp4" type="video/mp4">
-        Your browser does not support the video tag.
-      </video>
-      <div class="destination-text" id="destinationText">Traveling to <span id="destinationName">Tatooine</span></div>
-
-      <!-- Video volume control -->
-      <div class="video-controls">
-        <button id="videoVolumeBtn" class="video-volume-btn">
-          <i class="fas fa-volume-up"></i>
-        </button>
-        <div class="volume-slider-container">
-          <input type="range" min="0" max="100" value="70" class="volume-slider" id="videoVolumeSlider">
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script src="auth.js"></script>
   <script src="script.js"></script>
+  <script src="auth.js"></script>
+  <script src="tournament.js"></script>
 </body>
 </html>

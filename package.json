@@ -1,6 +1,6 @@
 {
   "name": "solwars",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -9,19 +9,24 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "Star Wars themed trading game with Solana wallet authentication",
+  "keywords": ["solana", "trading", "tournament", "defi", "crypto"],
+  "author": "SolWars Team",
+  "license": "MIT",
+  "description": "Epic Solana trading tournaments with real tokens and massive jackpots",
   "dependencies": {
     "@prisma/client": "^6.7.0",
     "@solana/web3.js": "^1.98.2",
+    "@solana/spl-token": "^0.4.8",
+    "axios": "^1.7.7",
     "bs58": "^5.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
+    "node-cron": "^3.0.3",
     "prisma": "^6.7.0",
-    "tweetnacl": "^1.0.3"
+    "socket.io": "^4.8.1",
+    "tweetnacl": "^1.0.3",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

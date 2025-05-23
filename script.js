@@ -2179,6 +2179,9 @@ function showNotification(message, type = 'success') {
   }
 }
 
+// Make showNotification globally available
+window.showNotification = showNotification;
+
   // Add key demo features
   // 1. Demonstrate location advantage with a flashing label after 5 seconds
   setTimeout(() => {
