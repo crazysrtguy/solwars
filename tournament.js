@@ -22,51 +22,61 @@ class TournamentManager {
     this.userPortfolio = {};
     this.isConnected = false;
 
-    this.initializeWebSocket();
+    this.initializePricePolling();
     this.loadTournaments();
     this.setupEventListeners();
     this.setupFilterListeners();
   }
 
-  // Initialize WebSocket connection for real-time updates
-  initializeWebSocket() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}`;
+  // Initialize price polling for Vercel deployment (replaces WebSocket)
+  initializePricePolling() {
+    try {
+      console.log('🔌 Starting price polling for real-time updates');
 
-    this.ws = new WebSocket(wsUrl);
+      // Poll prices every 5 seconds
+      this.pricePollingInterval = setInterval(async () => {
+        await this.fetchCurrentPrices();
+      }, 5000);
 
-    this.ws.onopen = () => {
-      console.log('🔌 Connected to SolWars real-time feed');
+      // Initial fetch
+      this.fetchCurrentPrices();
+
+      console.log('✅ Price polling initialized');
       this.isConnected = true;
       this.updateConnectionStatus(true);
 
-      // Subscribe to trending tokens immediately
-      this.subscribeToTrendingTokens();
-    };
-
-    this.ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        this.handleWebSocketMessage(data);
-      } catch (error) {
-        console.error('❌ Error parsing WebSocket message:', error);
-      }
-    };
-
-    this.ws.onclose = () => {
-      console.log('🔌 Disconnected from real-time feed');
+    } catch (error) {
+      console.error('❌ Failed to initialize price polling:', error);
       this.isConnected = false;
       this.updateConnectionStatus(false);
+    }
+  }
 
-      // Reconnect after 5 seconds
-      setTimeout(() => {
-        this.initializeWebSocket();
-      }, 5000);
-    };
+  // Fetch current prices from API
+  async fetchCurrentPrices() {
+    try {
+      const response = await fetch('/api/prices/current');
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
 
-    this.ws.onerror = (error) => {
-      console.error('❌ WebSocket error:', error);
-    };
+      const data = await response.json();
+      if (data.success && data.prices) {
+        this.handlePriceUpdate(data);
+      }
+
+    } catch (error) {
+      console.error('❌ Error fetching current prices:', error);
+    }
+  }
+
+  // Stop price polling
+  stopPricePolling() {
+    if (this.pricePollingInterval) {
+      clearInterval(this.pricePollingInterval);
+      this.pricePollingInterval = null;
+      console.log('🔌 Price polling stopped');
+    }
   }
 
   // Handle WebSocket messages
