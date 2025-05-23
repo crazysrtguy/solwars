@@ -260,23 +260,35 @@ class TournamentManager {
     try {
       console.log('🏆 Loading active tournaments...');
       const response = await fetch('/api/tournaments');
-      const tournaments = await response.json();
 
-      this.activeTournaments = tournaments;
-
-      // If showing my tournaments, also load user tournaments
-      if (this.currentFilter === 'my-tournaments' && authState.isAuthenticated) {
-        await this.loadUserTournaments();
-      } else {
-        // Apply current filter
-        this.filterTournaments();
-        this.displayTournaments();
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      console.log(`✅ Loaded ${tournaments.length} active tournaments`);
+      const data = await response.json();
+
+      if (data.success && data.tournaments) {
+        this.activeTournaments = data.tournaments;
+        console.log(`✅ Loaded ${data.tournaments.length} active tournaments`);
+
+        // If showing my tournaments, also load user tournaments
+        if (this.currentFilter === 'my-tournaments' && authState.isAuthenticated) {
+          await this.loadUserTournaments();
+        } else {
+          // Apply current filter
+          this.filterTournaments();
+          this.displayTournaments();
+        }
+      } else {
+        throw new Error(data.error || 'Failed to load tournaments');
+      }
     } catch (error) {
       console.error('❌ Error loading tournaments:', error);
       showNotification('Failed to load tournaments', 'error');
+
+      // Initialize as empty array to prevent iteration errors
+      this.activeTournaments = [];
+      this.displayTournaments();
     }
   }
 
@@ -343,6 +355,12 @@ class TournamentManager {
 
   // Filter tournaments based on current filter
   filterTournaments() {
+    // Ensure activeTournaments is always an array
+    if (!Array.isArray(this.activeTournaments)) {
+      console.warn('⚠️ activeTournaments is not an array, initializing as empty array');
+      this.activeTournaments = [];
+    }
+
     if (this.currentFilter === 'all') {
       this.filteredTournaments = [...this.activeTournaments];
     } else if (this.currentFilter === 'my-tournaments') {
