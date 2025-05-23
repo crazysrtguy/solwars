@@ -1,8 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
-
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -15,112 +11,87 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      // Get all tournaments
-      const tournaments = await prisma.tournament.findMany({
-        include: {
-          participants: {
-            select: {
-              id: true,
-              userId: true,
-              currentBalance: true,
-              startingBalance: true,
-              joinedAt: true
+      // Return test tournaments without database for now
+      const now = new Date();
+      const testTournaments = [
+        {
+          id: 'test-1',
+          name: 'Lightning Round - Live Now!',
+          description: 'Fast-paced 30-minute trading battle with trending tokens',
+          type: 'FLASH',
+          entryFeeSol: 0.05,
+          entryFeeSwars: 500,
+          bonusJackpot: 100,
+          maxParticipants: 50,
+          participantCount: 12,
+          prizePoolSol: 0.6,
+          totalJackpot: 180,
+          status: 'active',
+          startTime: new Date(now.getTime() - 5 * 60 * 1000).toISOString(),
+          endTime: new Date(now.getTime() + 25 * 60 * 1000).toISOString(),
+          createdAt: new Date(now.getTime() - 60 * 60 * 1000).toISOString(),
+          updatedAt: now.toISOString(),
+          selectedTokens: [
+            {
+              address: 'So11111111111111111111111111111111111111112',
+              name: 'Wrapped SOL',
+              symbol: 'SOL',
+              price: 180.50,
+              icon: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png'
+            },
+            {
+              address: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN',
+              name: 'Jupiter',
+              symbol: 'JUP',
+              price: 0.85,
+              icon: 'https://static.jup.ag/jup/icon.png'
             }
-          },
-          jackpotPool: true
+          ],
+          participants: [],
+          jackpotPool: null
         },
-        orderBy: {
-          startTime: 'asc'
+        {
+          id: 'test-2',
+          name: 'Crypto Gladiator Arena',
+          description: 'Epic 1-hour trading tournament',
+          type: 'FLASH',
+          entryFeeSol: 0.1,
+          entryFeeSwars: 1000,
+          bonusJackpot: 200,
+          maxParticipants: 100,
+          participantCount: 0,
+          prizePoolSol: 0,
+          totalJackpot: 200,
+          status: 'upcoming',
+          startTime: new Date(now.getTime() + 5 * 60 * 1000).toISOString(),
+          endTime: new Date(now.getTime() + 65 * 60 * 1000).toISOString(),
+          createdAt: new Date(now.getTime() - 30 * 60 * 1000).toISOString(),
+          updatedAt: now.toISOString(),
+          selectedTokens: [
+            {
+              address: 'So11111111111111111111111111111111111111112',
+              name: 'Wrapped SOL',
+              symbol: 'SOL',
+              price: 180.50,
+              icon: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png'
+            }
+          ],
+          participants: [],
+          jackpotPool: null
         }
-      });
-
-      // Calculate derived fields
-      const enrichedTournaments = tournaments.map(tournament => {
-        const participantCount = tournament.participants.length;
-        const prizePoolSol = tournament.entryFeeSol * participantCount;
-        const totalJackpot = tournament.bonusJackpot + (tournament.jackpotPool?.currentPool || 0);
-
-        // Determine status
-        const now = new Date();
-        let status = 'upcoming';
-        if (now >= tournament.startTime && now <= tournament.endTime) {
-          status = 'active';
-        } else if (now > tournament.endTime) {
-          status = 'ended';
-        }
-
-        return {
-          ...tournament,
-          participantCount,
-          prizePoolSol,
-          totalJackpot,
-          status,
-          // Convert dates to ISO strings for JSON serialization
-          startTime: tournament.startTime.toISOString(),
-          endTime: tournament.endTime.toISOString(),
-          createdAt: tournament.createdAt.toISOString(),
-          updatedAt: tournament.updatedAt.toISOString(),
-          participants: tournament.participants.map(p => ({
-            ...p,
-            joinedAt: p.joinedAt.toISOString()
-          }))
-        };
-      });
+      ];
 
       res.status(200).json({
         success: true,
-        tournaments: enrichedTournaments
+        tournaments: testTournaments
       });
 
     } else if (req.method === 'POST') {
-      // Create new tournament
-      const {
-        name,
-        description,
-        type,
-        entryFeeSol,
-        entryFeeSwars,
-        bonusJackpot,
-        maxParticipants,
-        startTime,
-        endTime,
-        selectedTokens,
-        tokenMetadata
-      } = req.body;
-
-      const tournament = await prisma.tournament.create({
-        data: {
-          name,
-          description,
-          type,
-          entryFeeSol: parseFloat(entryFeeSol),
-          entryFeeSwars: parseInt(entryFeeSwars),
-          bonusJackpot: parseInt(bonusJackpot),
-          maxParticipants: parseInt(maxParticipants),
-          startTime: new Date(startTime),
-          endTime: new Date(endTime),
-          selectedTokens: selectedTokens || [],
-          tokenMetadata: tokenMetadata || {}
-        }
-      });
-
-      // Create jackpot pool
-      await prisma.jackpotPool.create({
-        data: {
-          tournamentId: tournament.id,
-          bonusMultip: 1.5 + Math.random() * 0.5 // 1.5x to 2.0x multiplier
-        }
-      });
-
+      // Return test tournament creation
       res.status(201).json({
         success: true,
-        tournament: {
-          ...tournament,
-          startTime: tournament.startTime.toISOString(),
-          endTime: tournament.endTime.toISOString(),
-          createdAt: tournament.createdAt.toISOString(),
-          updatedAt: tournament.updatedAt.toISOString()
-        }
+        message: 'Tournament creation not yet implemented',
+        tournament: { id: 'test-new', name: 'Test Tournament' }
       });
 
     } else {
@@ -134,7 +105,5 @@ export default async function handler(req, res) {
       error: 'Internal server error',
       message: error.message
     });
-  } finally {
-    await prisma.$disconnect();
   }
 }

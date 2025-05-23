@@ -60,7 +60,7 @@ const MOCK_PRICES = {
   }
 };
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -79,12 +79,12 @@ export default async function handler(req, res) {
   try {
     // Add some randomness to simulate real price movements
     const currentPrices = {};
-    
+
     for (const [address, baseData] of Object.entries(MOCK_PRICES)) {
       // Add small random variations to simulate real-time updates
       const priceVariation = (Math.random() - 0.5) * 0.02; // ±1% variation
       const changeVariation = (Math.random() - 0.5) * 0.5; // ±0.25% change variation
-      
+
       currentPrices[address] = {
         price: baseData.price * (1 + priceVariation),
         priceChange24h: baseData.priceChange24h + changeVariation,
