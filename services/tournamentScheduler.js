@@ -434,11 +434,21 @@ class TournamentScheduler {
       });
 
       for (const tournament of tournamentsToEnd) {
-        await prisma.tournament.update({
-          where: { id: tournament.id },
-          data: { status: 'ENDED' }
-        });
-        console.log(`🏁 Ended tournament: ${tournament.name}`);
+        // Use the proper endTournament function to create prize claims
+        const TournamentService = require('./tournamentService');
+        const tournamentService = new TournamentService();
+
+        try {
+          await tournamentService.endTournament(tournament.id);
+          console.log(`🏁 Properly ended tournament with prizes: ${tournament.name}`);
+        } catch (error) {
+          console.error(`❌ Error ending tournament ${tournament.name}:`, error.message);
+          // Fallback to just updating status if endTournament fails
+          await prisma.tournament.update({
+            where: { id: tournament.id },
+            data: { status: 'ENDED' }
+          });
+        }
       }
 
     } catch (error) {

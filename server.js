@@ -11,6 +11,7 @@ require('dotenv').config();
 const TokenService = require('./services/tokenService');
 const TournamentService = require('./services/tournamentService');
 const SwarsTokenService = require('./services/swarsTokenService');
+const SolTransferService = require('./services/solTransferService');
 const DexScreenerService = require('./services/dexScreenerService');
 const PriceUpdateService = require('./services/priceUpdateService');
 const TradingService = require('./services/tradingService');
@@ -23,8 +24,9 @@ const PORT = process.env.PORT || 3000;
 
 // Initialize services
 const tokenService = new TokenService();
+const solTransferService = new SolTransferService();
+const swarsService = new SwarsTokenService(solTransferService);
 const tournamentService = new TournamentService();
-const swarsService = new SwarsTokenService();
 const dexScreenerService = new DexScreenerService();
 const priceService = new PriceUpdateService(server);
 const tradingService = new TradingService(priceService);
@@ -440,6 +442,135 @@ app.get('/api/tournaments/:id/leaderboard', async (req, res) => {
   }
 });
 
+// Get tournament prize structure
+app.get('/api/tournaments/:id/prize-structure', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`💰 Fetching prize structure for tournament ${id}`);
+
+    const prizeStructure = await tournamentService.calculatePrizeStructure(id);
+    res.json(prizeStructure);
+  } catch (error) {
+    console.error('❌ Error fetching prize structure:', error);
+    res.status(500).json({ error: 'Server error fetching prize structure' });
+  }
+});
+
+// Get potential winnings for a user
+app.get('/api/tournaments/:id/potential-winnings/:walletAddress', async (req, res) => {
+  try {
+    const { id, walletAddress } = req.params;
+    console.log(`🎯 Fetching potential winnings for ${walletAddress} in tournament ${id}`);
+
+    const potentialWinnings = await tournamentService.getPotentialWinnings(id, walletAddress);
+    res.json(potentialWinnings);
+  } catch (error) {
+    console.error('❌ Error fetching potential winnings:', error);
+    res.status(500).json({ error: 'Server error fetching potential winnings' });
+  }
+});
+
+// Get unclaimed prizes for a user
+app.get('/api/prizes/unclaimed/:walletAddress', async (req, res) => {
+  try {
+    const { walletAddress } = req.params;
+    console.log(`💰 Fetching unclaimed prizes for ${walletAddress}`);
+
+    const unclaimedPrizes = await tournamentService.getUnclaimedPrizes(walletAddress);
+    res.json(unclaimedPrizes);
+  } catch (error) {
+    console.error('❌ Error fetching unclaimed prizes:', error);
+    res.status(500).json({ error: 'Server error fetching unclaimed prizes' });
+  }
+});
+
+// Claim a prize
+app.post('/api/prizes/claim', async (req, res) => {
+  try {
+    const { walletAddress, tournamentId } = req.body;
+    console.log(`💰 Processing prize claim for ${walletAddress} in tournament ${tournamentId}`);
+
+    // Enhanced security validation
+    if (!walletAddress || !tournamentId) {
+      return res.status(400).json({ error: 'Wallet address and tournament ID required' });
+    }
+
+    // Validate wallet address format
+    try {
+      new PublicKey(walletAddress);
+    } catch (error) {
+      console.log(`❌ Invalid wallet address format: ${walletAddress}`);
+      return res.status(400).json({ error: 'Invalid wallet address format' });
+    }
+
+    // Rate limiting: Check for recent claims from this wallet
+    const recentClaims = await prisma.prizeClaim.count({
+      where: {
+        walletAddress,
+        claimedAt: {
+          gte: new Date(Date.now() - 60000) // Last 1 minute
+        }
+      }
+    });
+
+    if (recentClaims >= 3) {
+      console.log(`❌ Rate limit exceeded for wallet: ${walletAddress}`);
+      return res.status(429).json({ error: 'Too many claim attempts. Please wait before trying again.' });
+    }
+
+    // Additional security: Verify the wallet actually participated in the tournament
+    const participation = await prisma.tournamentParticipant.findFirst({
+      where: {
+        tournamentId,
+        walletAddress
+      }
+    });
+
+    if (!participation) {
+      console.log(`❌ Wallet ${walletAddress} did not participate in tournament ${tournamentId}`);
+      return res.status(403).json({ error: 'You did not participate in this tournament' });
+    }
+
+    const claimResult = await tournamentService.claimPrize(walletAddress, tournamentId);
+    res.json(claimResult);
+  } catch (error) {
+    console.error('❌ Error claiming prize:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Complete prize claim after SOL transfer
+app.post('/api/prizes/complete-claim', async (req, res) => {
+  try {
+    const { walletAddress, tournamentId, transactionHash } = req.body;
+    console.log(`✅ Completing prize claim for ${walletAddress} in tournament ${tournamentId}`);
+
+    if (!walletAddress || !tournamentId) {
+      return res.status(400).json({ error: 'Wallet address and tournament ID required' });
+    }
+
+    const claimResult = await tournamentService.completePrizeClaim(walletAddress, tournamentId, transactionHash);
+    res.json(claimResult);
+  } catch (error) {
+    console.error('❌ Error completing prize claim:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Get prize history for a user
+app.get('/api/prizes/history/:walletAddress', async (req, res) => {
+  try {
+    const { walletAddress } = req.params;
+    console.log(`📜 Fetching prize history for ${walletAddress}`);
+
+    const prizeHistory = await tournamentService.getPrizeHistory(walletAddress);
+    res.json(prizeHistory);
+  } catch (error) {
+    console.error('❌ Error fetching prize history:', error);
+    res.status(500).json({ error: 'Server error fetching prize history' });
+  }
+});
+
 // Create instant tournament (starts immediately)
 app.post('/api/tournaments/create-instant', async (req, res) => {
   try {
@@ -574,7 +705,7 @@ app.get('/api/swars/balance/:walletAddress', async (req, res) => {
   }
 });
 
-// Claim daily bonus
+// Claim daily bonus with progressive streak
 app.post('/api/swars/daily-bonus', async (req, res) => {
   try {
     const { walletAddress } = req.body;
@@ -583,15 +714,44 @@ app.post('/api/swars/daily-bonus', async (req, res) => {
       return res.status(400).json({ error: 'Wallet address required' });
     }
 
-    const bonusAmount = await swarsService.claimDailyBonus(walletAddress);
-    res.json({
-      success: true,
-      amount: bonusAmount,
-      message: `Claimed ${bonusAmount} SWARS daily bonus!`
-    });
+    const bonusResult = await swarsService.claimDailyBonus(walletAddress);
+
+    // Handle both old and new response formats
+    if (typeof bonusResult === 'number') {
+      // Legacy response format
+      res.json({
+        success: true,
+        amount: bonusResult,
+        message: `Claimed ${bonusResult} SWARS daily bonus!`
+      });
+    } else {
+      // New progressive streak format
+      res.json({
+        success: true,
+        amount: bonusResult.amount,
+        currentStreak: bonusResult.currentStreak,
+        longestStreak: bonusResult.longestStreak,
+        nextDayBonus: bonusResult.nextDayBonus,
+        message: `🔥 Day ${bonusResult.currentStreak} streak! Claimed ${bonusResult.amount} SWARS!`
+      });
+    }
   } catch (error) {
     console.error('❌ Error claiming daily bonus:', error);
     res.status(400).json({ error: error.message });
+  }
+});
+
+// Get login streak information
+app.get('/api/swars/streak/:walletAddress', async (req, res) => {
+  try {
+    const { walletAddress } = req.params;
+    console.log(`📊 Fetching login streak for ${walletAddress}`);
+
+    const streakInfo = await swarsService.getLoginStreakInfo(walletAddress);
+    res.json(streakInfo);
+  } catch (error) {
+    console.error('❌ Error fetching login streak:', error);
+    res.status(500).json({ error: 'Server error fetching login streak' });
   }
 });
 

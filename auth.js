@@ -28,8 +28,13 @@ const checkWalletConnection = async () => {
     if (resp && resp.publicKey) {
       authState.walletAddress = resp.publicKey.toString();
       authState.isAuthenticated = true;
-      updateAuthUI();
+
       console.log('Wallet already connected:', authState.walletAddress);
+
+      // Load SWARS data for already connected wallet
+      await loadSwarsBalance();
+
+      updateAuthUI();
       return true;
     }
   } catch (error) {
@@ -275,28 +280,47 @@ const getLeaderboard = async () => {
   }
 };
 
-// Load SWARS balance and daily bonus status
+// Load SWARS balance and login streak status
 const loadSwarsBalance = async () => {
   if (!authState.walletAddress) return;
 
   try {
-    const response = await fetch(`/api/swars/balance/${authState.walletAddress}`);
-    const data = await response.json();
+    // Load SWARS balance
+    const balanceResponse = await fetch(`/api/swars/balance/${authState.walletAddress}`);
+    const balanceData = await balanceResponse.json();
+    authState.swarsBalance = balanceData.balance || 0;
 
-    authState.swarsBalance = data.balance || 0;
+    // Load login streak information
+    const streakResponse = await fetch(`/api/swars/streak/${authState.walletAddress}`);
+    const streakData = await streakResponse.json();
 
-    // Check if daily bonus can be claimed (simplified check)
-    const lastClaim = localStorage.getItem(`lastDailyBonus_${authState.walletAddress}`);
-    const today = new Date().toDateString();
-    authState.canClaimDailyBonus = lastClaim !== today;
+    console.log('📊 Streak data received:', streakData); // Debug log
+
+    authState.loginStreak = {
+      currentStreak: streakData.currentStreak || 0,
+      longestStreak: streakData.longestStreak || 0,
+      totalLogins: streakData.totalLogins || 0,
+      canClaimToday: streakData.canClaimToday !== false, // Default to true for new users
+      nextDayBonus: streakData.nextDayBonus || 5
+    };
+
+    authState.canClaimDailyBonus = streakData.canClaimToday === true; // Explicit check for true
+
+    console.log('🎯 Streak data from server:', streakData); // Debug log
+    console.log('🎯 Can claim daily bonus:', authState.canClaimDailyBonus); // Debug log
 
     updateSwarsUI();
   } catch (error) {
-    console.error('Error loading SWARS balance:', error);
+    console.error('Error loading SWARS data:', error);
+    // Fallback for compatibility
+    const lastClaim = localStorage.getItem(`lastDailyBonus_${authState.walletAddress}`);
+    const today = new Date().toDateString();
+    authState.canClaimDailyBonus = lastClaim !== today;
+    updateSwarsUI();
   }
 };
 
-// Claim daily bonus
+// Claim daily bonus with progressive streak
 const claimDailyBonus = async () => {
   if (!authState.isAuthenticated || !authState.canClaimDailyBonus) {
     showNotification('Daily bonus already claimed today!', 'warning');
@@ -320,12 +344,38 @@ const claimDailyBonus = async () => {
       authState.swarsBalance += data.amount;
       authState.canClaimDailyBonus = false;
 
+      // Update login streak info if available
+      if (data.currentStreak !== undefined) {
+        authState.loginStreak = {
+          currentStreak: data.currentStreak,
+          longestStreak: data.longestStreak,
+          nextDayBonus: data.nextDayBonus,
+          canClaimToday: false
+        };
+      }
+
       // Store claim date
       const today = new Date().toDateString();
       localStorage.setItem(`lastDailyBonus_${authState.walletAddress}`, today);
 
-      showNotification(`🎁 Claimed ${data.amount} SWARS daily bonus!`, 'success');
+      // Enhanced notification with streak info
+      let message = data.message || `🎁 Claimed ${data.amount} SWARS!`;
+      if (data.currentStreak > 1) {
+        message += ` 🔥 ${data.currentStreak} day streak!`;
+      }
+      if (data.nextDayBonus) {
+        message += ` Tomorrow: ${data.nextDayBonus} SWARS`;
+      }
+
+      showNotification(message, 'success');
       updateSwarsUI();
+
+      // Start countdown timer for next bonus
+      const countdownDisplay = document.getElementById('countdownDisplay');
+      if (countdownDisplay) {
+        countdownDisplay.style.display = 'block';
+        startCountdownTimer();
+      }
     } else {
       showNotification(data.error || 'Failed to claim daily bonus', 'error');
     }
@@ -349,11 +399,29 @@ const updateSwarsUI = () => {
       swarsAmount.textContent = authState.swarsBalance.toLocaleString();
     }
     if (dailyBonusBtn) {
-      dailyBonusBtn.style.display = authState.canClaimDailyBonus ? 'block' : 'none';
       if (authState.canClaimDailyBonus) {
+        dailyBonusBtn.style.display = 'block';
+        dailyBonusBtn.disabled = false;
         dailyBonusBtn.classList.add('glow-animation');
+
+        // Enhanced button text with streak info
+        let buttonText = '<i class="fas fa-gift"></i> Claim Daily Bonus';
+        if (authState.loginStreak && authState.loginStreak.currentStreak >= 0) {
+          const nextDay = authState.loginStreak.currentStreak + 1;
+          const nextBonus = authState.loginStreak.nextDayBonus || (nextDay * 5);
+          buttonText = `<i class="fas fa-fire"></i> Day ${nextDay} (${nextBonus} SWARS)`;
+        }
+        dailyBonusBtn.innerHTML = buttonText;
       } else {
-        dailyBonusBtn.classList.remove('glow-animation');
+        // Show streak info even when can't claim
+        if (authState.loginStreak && authState.loginStreak.currentStreak > 0) {
+          dailyBonusBtn.style.display = 'block';
+          dailyBonusBtn.disabled = true;
+          dailyBonusBtn.classList.remove('glow-animation');
+          dailyBonusBtn.innerHTML = `<i class="fas fa-check-circle"></i> Day ${authState.loginStreak.currentStreak} Complete`;
+        } else {
+          dailyBonusBtn.style.display = 'none';
+        }
       }
     }
   } else {
@@ -364,6 +432,180 @@ const updateSwarsUI = () => {
       dailyBonusBtn.style.display = 'none';
     }
   }
+
+  // Update streak display
+  updateStreakDisplay();
+};
+
+// Update streak display in UI
+const updateStreakDisplay = () => {
+  const streakDisplay = document.getElementById('streakDisplay');
+  if (streakDisplay && authState.loginStreak && authState.isAuthenticated) {
+    const streak = authState.loginStreak;
+    streakDisplay.innerHTML = `
+      <div class="streak-info">
+        <div class="streak-current">
+          <i class="fas fa-fire"></i>
+          <span class="streak-number">${streak.currentStreak}</span>
+          <span class="streak-label">Day Streak</span>
+        </div>
+        <div class="streak-details">
+          <div class="streak-stat">
+            <span class="stat-label">Longest:</span>
+            <span class="stat-value">${streak.longestStreak}</span>
+          </div>
+          <div class="streak-stat">
+            <span class="stat-label">Next Bonus:</span>
+            <span class="stat-value">${streak.nextDayBonus || 5} SWARS</span>
+          </div>
+        </div>
+      </div>
+    `;
+    streakDisplay.style.display = 'block';
+  } else if (streakDisplay) {
+    streakDisplay.style.display = 'none';
+  }
+
+  // Update main daily bonus section
+  updateDailyBonusSection();
+};
+
+// Countdown timer variables
+let countdownInterval = null;
+
+// Update the main daily bonus section in sidebar
+const updateDailyBonusSection = () => {
+  const connectPrompt = document.getElementById('connectPrompt');
+  const streakInfoCard = document.getElementById('streakInfoCard');
+  const dailyBonusMainBtn = document.getElementById('dailyBonusMainBtn');
+  const countdownDisplay = document.getElementById('countdownDisplay');
+
+  if (!connectPrompt || !streakInfoCard || !dailyBonusMainBtn) return;
+
+  if (!authState.isAuthenticated) {
+    // Show connect prompt
+    connectPrompt.style.display = 'block';
+    streakInfoCard.style.display = 'none';
+    dailyBonusMainBtn.style.display = 'none';
+    if (countdownDisplay) countdownDisplay.style.display = 'none';
+
+    // Clear countdown timer
+    if (countdownInterval) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+    }
+  } else {
+    // Show streak info and bonus button
+    connectPrompt.style.display = 'none';
+    streakInfoCard.style.display = 'block';
+    dailyBonusMainBtn.style.display = 'block';
+
+    // Update streak info card
+    if (authState.loginStreak) {
+      const streak = authState.loginStreak;
+      streakInfoCard.innerHTML = `
+        <div class="streak-current">
+          <i class="fas fa-fire"></i>
+          <span class="streak-number">${streak.currentStreak}</span>
+          <span class="streak-label">Day Streak</span>
+        </div>
+        <div class="streak-details">
+          <div class="streak-stat">
+            <span class="stat-label">Longest:</span>
+            <span class="stat-value">${streak.longestStreak}</span>
+          </div>
+          <div class="streak-stat">
+            <span class="stat-label">Total Logins:</span>
+            <span class="stat-value">${streak.totalLogins || 0}</span>
+          </div>
+          <div class="streak-stat">
+            <span class="stat-label">Next Bonus:</span>
+            <span class="stat-value">${streak.nextDayBonus || 5} SWARS</span>
+          </div>
+        </div>
+      `;
+    }
+
+    // Update bonus button and countdown
+    if (authState.canClaimDailyBonus) {
+      dailyBonusMainBtn.disabled = false;
+      dailyBonusMainBtn.classList.add('glow-animation');
+      if (countdownDisplay) countdownDisplay.style.display = 'none';
+
+      // Clear countdown timer
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+      }
+
+      let buttonText = '<i class="fas fa-gift"></i> Claim Daily Bonus';
+      if (authState.loginStreak && authState.loginStreak.currentStreak >= 0) {
+        const nextDay = authState.loginStreak.currentStreak + 1;
+        const nextBonus = authState.loginStreak.nextDayBonus || (nextDay * 5);
+        buttonText = `<i class="fas fa-fire"></i> Claim Day ${nextDay} (${nextBonus} SWARS)`;
+      }
+      dailyBonusMainBtn.innerHTML = buttonText;
+    } else {
+      dailyBonusMainBtn.disabled = true;
+      dailyBonusMainBtn.classList.remove('glow-animation');
+
+      if (authState.loginStreak && authState.loginStreak.currentStreak > 0) {
+        dailyBonusMainBtn.innerHTML = `<i class="fas fa-check-circle"></i> Day ${authState.loginStreak.currentStreak} Complete`;
+      } else {
+        dailyBonusMainBtn.innerHTML = '<i class="fas fa-clock"></i> Come back tomorrow';
+      }
+
+      // Show countdown timer
+      if (countdownDisplay) {
+        countdownDisplay.style.display = 'block';
+        startCountdownTimer();
+      }
+    }
+  }
+};
+
+// Start countdown timer for next daily bonus
+const startCountdownTimer = () => {
+  // Clear existing timer
+  if (countdownInterval) {
+    clearInterval(countdownInterval);
+  }
+
+  const updateCountdown = () => {
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0); // Set to midnight
+
+    const timeLeft = tomorrow.getTime() - now.getTime();
+
+    if (timeLeft <= 0) {
+      // Time's up! Refresh the bonus status
+      if (authState.isAuthenticated) {
+        loadSwarsBalance();
+      }
+      return;
+    }
+
+    const hours = Math.floor(timeLeft / (1000 * 60 * 60));
+    const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+
+    // Update countdown display
+    const hoursElement = document.getElementById('hoursLeft');
+    const minutesElement = document.getElementById('minutesLeft');
+    const secondsElement = document.getElementById('secondsLeft');
+
+    if (hoursElement) hoursElement.textContent = hours.toString().padStart(2, '0');
+    if (minutesElement) minutesElement.textContent = minutes.toString().padStart(2, '0');
+    if (secondsElement) secondsElement.textContent = seconds.toString().padStart(2, '0');
+  };
+
+  // Update immediately
+  updateCountdown();
+
+  // Update every second
+  countdownInterval = setInterval(updateCountdown, 1000);
 };
 
 // Update UI based on authentication state
@@ -400,6 +642,11 @@ const updateAuthUI = () => {
   // Update My Tournaments button visibility
   if (window.tournamentManager) {
     window.tournamentManager.updateMyTournamentsButton();
+
+    // Load user prizes when authenticated
+    if (authState.isAuthenticated) {
+      window.tournamentManager.loadUserPrizes();
+    }
   }
 };
 
@@ -456,10 +703,29 @@ const shortenAddress = (address) => {
 
 // Initialize auth UI when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-  // Setup daily bonus button
+  // Setup daily bonus buttons
   const dailyBonusBtn = document.getElementById('dailyBonusBtn');
   if (dailyBonusBtn) {
     dailyBonusBtn.addEventListener('click', claimDailyBonus);
+  }
+
+  const dailyBonusMainBtn = document.getElementById('dailyBonusMainBtn');
+  if (dailyBonusMainBtn) {
+    dailyBonusMainBtn.addEventListener('click', claimDailyBonus);
+  }
+
+  // Debug button for testing
+  const debugBonusBtn = document.getElementById('debugBonusBtn');
+  if (debugBonusBtn) {
+    debugBonusBtn.addEventListener('click', () => {
+      console.log('🔧 Debug: Forcing daily bonus to be claimable');
+      authState.canClaimDailyBonus = true;
+      if (authState.loginStreak) {
+        authState.loginStreak.canClaimToday = true;
+      }
+      updateSwarsUI();
+      showNotification('Debug: Daily bonus enabled!', 'success');
+    });
   }
 
   // Check if wallet was previously connected

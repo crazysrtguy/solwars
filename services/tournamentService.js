@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const TokenService = require('./tokenService');
+const SolTransferService = require('./solTransferService');
 const cron = require('node-cron');
 
 // Initialize Prisma client with error handling
@@ -39,6 +40,7 @@ try {
 class TournamentService {
   constructor() {
     this.tokenService = new TokenService();
+    this.solTransferService = new SolTransferService();
     this.setupCronJobs();
   }
 
@@ -336,6 +338,97 @@ class TournamentService {
     }
   }
 
+  // Calculate current prize pool and payout structure
+  async calculatePrizeStructure(tournamentId) {
+    try {
+      const tournament = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        include: {
+          participants: true,
+          _count: { select: { participants: true } }
+        }
+      });
+
+      if (!tournament) {
+        throw new Error('Tournament not found');
+      }
+
+      const participantCount = tournament._count.participants;
+      const totalSolPrize = tournament.prizePoolSol;
+
+      // Get bonus jackpot info
+      const jackpot = await prisma.jackpotPool.findUnique({
+        where: { tournamentId }
+      });
+
+      const totalBonusJackpot = jackpot ? jackpot.swarsContrib * jackpot.bonusMultip : 0;
+
+      // Prize distribution percentages
+      const prizeDistribution = [
+        { rank: 1, percentage: 0.5, label: '1st Place' },
+        { rank: 2, percentage: 0.3, label: '2nd Place' },
+        { rank: 3, percentage: 0.2, label: '3rd Place' }
+      ];
+
+      // Calculate actual payouts
+      const payouts = prizeDistribution.map(tier => ({
+        ...tier,
+        solPrize: totalSolPrize * tier.percentage,
+        bonusJackpot: totalBonusJackpot * tier.percentage,
+        totalValue: (totalSolPrize * tier.percentage) + (totalBonusJackpot * tier.percentage)
+      }));
+
+      return {
+        tournamentId,
+        participantCount,
+        totalSolPrize,
+        totalBonusJackpot,
+        payouts,
+        entryFeeSol: tournament.entryFeeSol,
+        entryFeeSwars: tournament.entryFeeSwars,
+        maxParticipants: tournament.maxParticipants,
+        platformFee: tournament.entryFeeSol * 0.1, // 10% platform fee
+        prizePoolPercentage: 0.9 // 90% goes to prize pool
+      };
+    } catch (error) {
+      console.error('❌ Error calculating prize structure:', error.message);
+      throw error;
+    }
+  }
+
+  // Get potential winnings for a user considering their current rank
+  async getPotentialWinnings(tournamentId, walletAddress) {
+    try {
+      const leaderboard = await this.getTournamentLeaderboard(tournamentId);
+      const prizeStructure = await this.calculatePrizeStructure(tournamentId);
+
+      const userRank = leaderboard.findIndex(p => p.walletAddress === walletAddress) + 1;
+
+      if (userRank === 0) {
+        return { rank: null, potentialWinnings: 0, message: 'Not participating' };
+      }
+
+      let potentialWinnings = 0;
+      let prizeInfo = null;
+
+      if (userRank <= 3) {
+        prizeInfo = prizeStructure.payouts[userRank - 1];
+        potentialWinnings = prizeInfo.totalValue;
+      }
+
+      return {
+        rank: userRank,
+        potentialWinnings,
+        prizeInfo,
+        totalParticipants: leaderboard.length,
+        prizeStructure
+      };
+    } catch (error) {
+      console.error('❌ Error calculating potential winnings:', error.message);
+      throw error;
+    }
+  }
+
   // End tournament and distribute prizes
   async endTournament(tournamentId) {
     try {
@@ -350,27 +443,20 @@ class TournamentService {
         throw new Error('Tournament not found');
       }
 
-      // Get final leaderboard
+      // Get final leaderboard and prize structure
       const leaderboard = await this.getTournamentLeaderboard(tournamentId);
+      const prizeStructure = await this.calculatePrizeStructure(tournamentId);
 
-      // Calculate prize distribution (50%, 30%, 20% for top 3)
-      const totalPrize = tournament.prizePoolSol;
-      const prizeDistribution = [0.5, 0.3, 0.2];
-
-      // Get bonus jackpot info
-      const jackpot = await prisma.jackpotPool.findUnique({
-        where: { tournamentId }
-      });
-
-      // Distribute prizes
+      // Distribute prizes to top 3
+      const winners = [];
       for (let i = 0; i < Math.min(3, leaderboard.length); i++) {
         const participant = leaderboard[i];
-        const prize = totalPrize * prizeDistribution[i];
+        const payout = prizeStructure.payouts[i];
 
         // Calculate bonus for SWARS entries
-        let bonus = 0;
-        if (participant.entryType === 'SWARS' && jackpot) {
-          bonus = (jackpot.swarsContrib * jackpot.bonusMultip) * prizeDistribution[i];
+        let bonusAmount = 0;
+        if (participant.entryType === 'SWARS') {
+          bonusAmount = payout.bonusJackpot;
         }
 
         // Update participant record
@@ -381,23 +467,41 @@ class TournamentService {
           },
           data: {
             finalRank: i + 1,
-            prizeWon: prize,
-            bonusWon: bonus
+            prizeWon: payout.solPrize,
+            bonusWon: bonusAmount
           }
         });
 
-        // Update user stats
+        // Create prize claim record
+        await prisma.prizeClaim.create({
+          data: {
+            tournamentId,
+            walletAddress: participant.walletAddress,
+            rank: i + 1,
+            solPrize: payout.solPrize,
+            swarsPrize: bonusAmount,
+            claimed: false
+          }
+        });
+
+        // Update user stats (but don't add to totalWinnings until claimed)
         await prisma.user.update({
           where: { walletAddress: participant.walletAddress },
           data: {
-            totalWinnings: {
-              increment: prize + bonus
-            },
             tournamentsWon: i === 0 ? { increment: 1 } : undefined
           }
         });
 
-        console.log(`🏆 Rank ${i + 1}: ${participant.username} won ${prize.toFixed(4)} SOL + ${bonus.toFixed(4)} bonus`);
+        winners.push({
+          rank: i + 1,
+          username: participant.username,
+          walletAddress: participant.walletAddress,
+          solPrize: payout.solPrize,
+          bonusWon: bonusAmount,
+          totalWon: payout.solPrize + bonusAmount
+        });
+
+        console.log(`🏆 Rank ${i + 1}: ${participant.username} won ${payout.solPrize.toFixed(4)} SOL + ${bonusAmount.toFixed(4)} bonus`);
       }
 
       // Update tournament status
@@ -407,8 +511,281 @@ class TournamentService {
       });
 
       console.log(`✅ Tournament ${tournamentId} ended successfully`);
+      return { winners, prizeStructure };
     } catch (error) {
       console.error('❌ Error ending tournament:', error.message);
+      throw error;
+    }
+  }
+
+  // Get unclaimed prizes for a user
+  async getUnclaimedPrizes(walletAddress) {
+    try {
+      const unclaimedPrizes = await prisma.prizeClaim.findMany({
+        where: {
+          walletAddress,
+          claimed: false
+        },
+        include: {
+          tournament: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              endTime: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+
+      return unclaimedPrizes;
+    } catch (error) {
+      console.error('❌ Error getting unclaimed prizes:', error.message);
+      throw error;
+    }
+  }
+
+  // Claim a prize
+  async claimPrize(walletAddress, tournamentId) {
+    try {
+      console.log(`💰 Processing prize claim for ${walletAddress} in tournament ${tournamentId}`);
+
+      // Find the prize claim
+      const prizeClaim = await prisma.prizeClaim.findUnique({
+        where: {
+          tournamentId_walletAddress: {
+            tournamentId,
+            walletAddress
+          }
+        },
+        include: {
+          tournament: true
+        }
+      });
+
+      if (!prizeClaim) {
+        throw new Error('Prize claim not found');
+      }
+
+      if (prizeClaim.claimed) {
+        throw new Error('Prize already claimed');
+      }
+
+      // Additional security: Verify tournament is actually ended
+      if (prizeClaim.tournament.status !== 'ENDED') {
+        throw new Error('Tournament must be ended before claiming prizes');
+      }
+
+      // Security: Verify prize amounts are reasonable (prevent manipulation)
+      if (prizeClaim.solPrize < 0 || prizeClaim.swarsPrize < 0) {
+        throw new Error('Invalid prize amounts detected');
+      }
+
+      if (prizeClaim.solPrize > 10 || prizeClaim.swarsPrize > 10000) {
+        console.log(`⚠️ Large prize claim detected: ${prizeClaim.solPrize} SOL + ${prizeClaim.swarsPrize} SWARS`);
+        // Log for manual review but allow the claim
+      }
+
+      // Verify rank is valid (1-3)
+      if (prizeClaim.rank < 1 || prizeClaim.rank > 3) {
+        throw new Error('Invalid prize rank');
+      }
+
+      // Security audit log
+      console.log(`🔒 SECURITY AUDIT - Prize Claim Attempt:`, {
+        walletAddress,
+        tournamentId,
+        tournamentName: prizeClaim.tournament.name,
+        rank: prizeClaim.rank,
+        solPrize: prizeClaim.solPrize,
+        swarsPrize: prizeClaim.swarsPrize,
+        timestamp: new Date().toISOString()
+      });
+
+      // Send both SOL and SWARS prizes if any
+      let transferResults = null;
+      if (prizeClaim.solPrize > 0 || prizeClaim.swarsPrize > 0) {
+        console.log(`💸 Sending prizes: ${prizeClaim.solPrize} SOL + ${prizeClaim.swarsPrize} SWARS to ${walletAddress}`);
+
+        try {
+          transferResults = await this.solTransferService.sendCombinedPrize(
+            walletAddress,
+            prizeClaim.solPrize,
+            prizeClaim.swarsPrize
+          );
+          console.log(`✅ Prize transfers successful:`, transferResults.transfers.map(t => t.signature));
+
+          // Security audit log for successful transfer
+          console.log(`🔒 SECURITY AUDIT - Prize Transfer Success:`, {
+            walletAddress,
+            tournamentId,
+            signatures: transferResults.transfers.map(t => t.signature),
+            timestamp: new Date().toISOString()
+          });
+        } catch (transferError) {
+          console.error('❌ Prize transfer failed:', transferError);
+
+          // Security audit log for failed transfer
+          console.log(`🔒 SECURITY AUDIT - Prize Transfer Failed:`, {
+            walletAddress,
+            tournamentId,
+            error: transferError.message,
+            timestamp: new Date().toISOString()
+          });
+
+          throw new Error(`Failed to send prizes: ${transferError.message}`);
+        }
+      }
+
+      // Complete the prize claim with transaction hashes
+      const transactionHashes = transferResults ? transferResults.transfers.map(t => t.signature).join(',') : null;
+      const result = await this.completePrizeClaim(walletAddress, tournamentId, transactionHashes);
+
+      return {
+        success: true,
+        solPrize: prizeClaim.solPrize,
+        swarsPrize: prizeClaim.swarsPrize,
+        rank: prizeClaim.rank,
+        tournamentName: prizeClaim.tournament.name,
+        transactionHashes: transferResults ? transferResults.transfers : [],
+        claimedAt: result.claimedAt
+      };
+
+    } catch (error) {
+      console.error('❌ Error claiming prize:', error.message);
+      throw error;
+    }
+  }
+
+  // Complete prize claim after SOL transfer (if any)
+  async completePrizeClaim(walletAddress, tournamentId, solTransactionHash = null) {
+    try {
+      console.log(`✅ Completing prize claim for ${walletAddress} in tournament ${tournamentId}`);
+
+      // Find the prize claim
+      const prizeClaim = await prisma.prizeClaim.findUnique({
+        where: {
+          tournamentId_walletAddress: {
+            tournamentId,
+            walletAddress
+          }
+        },
+        include: {
+          tournament: true
+        }
+      });
+
+      if (!prizeClaim) {
+        throw new Error('Prize claim not found');
+      }
+
+      if (prizeClaim.claimed) {
+        throw new Error('Prize already claimed');
+      }
+
+      // Start transaction
+      const result = await prisma.$transaction(async (tx) => {
+        // Mark prize as claimed
+        const updatedClaim = await tx.prizeClaim.update({
+          where: {
+            id: prizeClaim.id
+          },
+          data: {
+            claimed: true,
+            claimedAt: new Date(),
+            transactionHash: solTransactionHash
+          }
+        });
+
+        // Record SWARS transaction if any (tokens already sent via blockchain)
+        if (prizeClaim.swarsPrize > 0) {
+          await tx.swarsTransaction.create({
+            data: {
+              walletAddress,
+              type: 'EARNED',
+              amount: prizeClaim.swarsPrize,
+              description: `Tournament prize: ${prizeClaim.tournament.name} (Rank ${prizeClaim.rank})`,
+              txSignature: solTransactionHash
+            }
+          });
+        }
+
+        // Update user total winnings
+        await tx.user.upsert({
+          where: { walletAddress },
+          update: {
+            totalWinnings: {
+              increment: prizeClaim.solPrize + prizeClaim.swarsPrize
+            }
+          },
+          create: {
+            walletAddress,
+            totalWinnings: prizeClaim.solPrize + prizeClaim.swarsPrize
+          }
+        });
+
+        // Update participant record
+        await tx.tournamentParticipant.updateMany({
+          where: {
+            tournamentId,
+            walletAddress
+          },
+          data: {
+            prizeClaimed: true,
+            prizeClaimedAt: new Date()
+          }
+        });
+
+        return updatedClaim;
+      });
+
+      console.log(`✅ Prize claim completed: ${prizeClaim.solPrize} SOL + ${prizeClaim.swarsPrize} SWARS`);
+
+      return {
+        success: true,
+        solPrize: prizeClaim.solPrize,
+        swarsPrize: prizeClaim.swarsPrize,
+        rank: prizeClaim.rank,
+        tournamentName: prizeClaim.tournament.name,
+        claimedAt: result.claimedAt,
+        transactionHash: solTransactionHash
+      };
+
+    } catch (error) {
+      console.error('❌ Error completing prize claim:', error.message);
+      throw error;
+    }
+  }
+
+  // Get prize claim history for a user
+  async getPrizeHistory(walletAddress) {
+    try {
+      const prizeHistory = await prisma.prizeClaim.findMany({
+        where: {
+          walletAddress
+        },
+        include: {
+          tournament: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              endTime: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+
+      return prizeHistory;
+    } catch (error) {
+      console.error('❌ Error getting prize history:', error.message);
+      throw error;
     }
   }
 

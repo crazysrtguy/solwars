@@ -75,6 +75,9 @@
             <i class="fas fa-coins"></i>
             <span id="swarsAmount">0</span> SWARS
           </div>
+          <div id="streakDisplay" class="streak-display" style="display: none;">
+            <!-- Streak info will be populated by JavaScript -->
+          </div>
           <div id="userInfo" class="user-info" style="display: none;"></div>
           <button id="authButton" class="btn btn-primary">Connect Wallet</button>
           <button id="dailyBonusBtn" class="btn btn-accent" style="display: none;">
@@ -284,6 +287,64 @@
             </div>
           </div>
 
+          <!-- Daily Login Bonus Section -->
+          <div class="card" id="dailyBonusSection">
+            <h2>
+              <i class="fas fa-fire"></i>
+              Daily Login Streak
+            </h2>
+            <div id="dailyBonusContainer">
+              <div class="daily-bonus-content">
+                <div class="bonus-status" id="bonusStatus">
+                  <div class="connect-prompt" id="connectPrompt">
+                    <i class="fas fa-wallet"></i>
+                    <p>Connect your wallet to start earning daily SWARS bonuses!</p>
+                    <small>Build your streak for bigger rewards</small>
+                  </div>
+                  <div class="streak-info-card" id="streakInfoCard" style="display: none;">
+                    <!-- Streak info will be populated here -->
+                  </div>
+                </div>
+                <div class="bonus-action" id="bonusAction">
+                  <button id="dailyBonusMainBtn" class="btn btn-accent daily-bonus-main" style="display: none;">
+                    <i class="fas fa-gift"></i> Claim Daily Bonus
+                  </button>
+                  <div id="countdownDisplay" class="countdown-display" style="display: none;">
+                    <div class="countdown-label">Next bonus available in:</div>
+                    <div class="countdown-timer" id="countdownTimer">
+                      <span class="time-unit">
+                        <span class="time-value" id="hoursLeft">00</span>
+                        <span class="time-label">hours</span>
+                      </span>
+                      <span class="time-separator">:</span>
+                      <span class="time-unit">
+                        <span class="time-value" id="minutesLeft">00</span>
+                        <span class="time-label">minutes</span>
+                      </span>
+                      <span class="time-separator">:</span>
+                      <span class="time-unit">
+                        <span class="time-value" id="secondsLeft">00</span>
+                        <span class="time-label">seconds</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Prize Collection Section -->
+          <div class="card" id="prizesSection" style="display: none;">
+            <h2>
+              <i class="fas fa-trophy"></i>
+              Your Prizes
+              <span class="prize-count" id="prizeCount">0</span>
+            </h2>
+            <div id="prizesContainer">
+              <!-- Prize claims will be loaded here -->
+            </div>
+          </div>
+
           <div class="card">
             <h2>
               <i class="fas fa-lightbulb"></i>
@@ -371,6 +432,11 @@
             <span class="label">Current Rank</span>
             <span class="value" id="tournamentRank">#--</span>
           </div>
+        </div>
+
+        <!-- Potential Winnings Display -->
+        <div id="potentialWinnings" class="potential-winnings-container">
+          <!-- Potential winnings will be populated dynamically -->
         </div>
 
         <!-- Main Trading Content -->

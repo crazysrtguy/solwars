@@ -71,6 +71,7 @@ model Tournament {
   updatedAt       DateTime               @updatedAt
   participants    TournamentParticipant[]
   priceSnapshots  TokenPriceSnapshot[]
+  prizeClaims     PrizeClaim[]
 }
 
 // Tournament participants
@@ -87,11 +88,30 @@ model TournamentParticipant {
   finalRank        Int?
   prizeWon         Float      @default(0)
   bonusWon         Float      @default(0)
+  prizeClaimed     Boolean    @default(false)
+  prizeClaimedAt   DateTime?
   joinedAt         DateTime   @default(now())
   tournament       Tournament @relation(fields: [tournamentId], references: [id])
   user             User       @relation(fields: [userId], references: [id])
 
   @@unique([tournamentId, userId])
+}
+
+// Prize claims tracking
+model PrizeClaim {
+  id               String     @id @default(uuid())
+  tournamentId     String
+  walletAddress    String
+  rank             Int
+  solPrize         Float
+  swarsPrize       Float
+  claimed          Boolean    @default(false)
+  claimedAt        DateTime?
+  transactionHash  String?    // SOL transaction hash
+  createdAt        DateTime   @default(now())
+  tournament       Tournament @relation(fields: [tournamentId], references: [id])
+
+  @@unique([tournamentId, walletAddress])
 }
 
 // Real-time token price snapshots
@@ -137,6 +157,19 @@ model SwarsTransaction {
   description   String?
   txSignature   String?     // Solana transaction signature
   timestamp     DateTime    @default(now())
+}
+
+// Daily login streak tracking
+model LoginStreak {
+  id                String   @id @default(uuid())
+  walletAddress     String   @unique
+  currentStreak     Int      @default(0)
+  longestStreak     Int      @default(0)
+  lastLoginDate     DateTime?
+  lastClaimDate     DateTime?
+  totalLogins       Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 // Jackpot tracking

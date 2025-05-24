@@ -28,6 +28,11 @@ class TournamentManager {
     this.setupFilterListeners();
     this.loadTrendingTokens();
     this.startTimerUpdates();
+
+    // Load user prizes when authenticated
+    if (authState.isAuthenticated) {
+      this.loadUserPrizes();
+    }
   }
 
   // Initialize price polling for Vercel deployment (replaces WebSocket)
@@ -1022,6 +1027,30 @@ class TournamentManager {
         </div>
       </div>
 
+      <div class="prize-breakdown">
+        <div class="prize-breakdown-header">
+          <i class="fas fa-trophy"></i>
+          <span>Prize Breakdown</span>
+          <button class="prize-details-btn" onclick="tournamentManager.showPrizeDetails('${tournament.id}')">
+            <i class="fas fa-info-circle"></i>
+          </button>
+        </div>
+        <div class="prize-tiers">
+          <div class="prize-tier first-place">
+            <span class="tier-label">🥇 1st</span>
+            <span class="tier-amount">${(tournament.prizePoolSol * 0.5).toFixed(3)} SOL</span>
+          </div>
+          <div class="prize-tier second-place">
+            <span class="tier-label">🥈 2nd</span>
+            <span class="tier-amount">${(tournament.prizePoolSol * 0.3).toFixed(3)} SOL</span>
+          </div>
+          <div class="prize-tier third-place">
+            <span class="tier-label">🥉 3rd</span>
+            <span class="tier-amount">${(tournament.prizePoolSol * 0.2).toFixed(3)} SOL</span>
+          </div>
+        </div>
+      </div>
+
       <div class="tournament-timing">
         <div class="time-info">
           <span class="time-label">${tournament.status === 'ACTIVE' ? 'Ends in' : 'Starts in'}</span>
@@ -1165,6 +1194,31 @@ class TournamentManager {
           <div class="entry-detail">
             <span class="detail-label">Participants:</span>
             <span class="detail-value">${tournament.participantCount}/${tournament.maxParticipants}</span>
+          </div>
+        </div>
+
+        <div class="prize-preview">
+          <h4><i class="fas fa-trophy"></i> Prize Breakdown</h4>
+          <div class="prize-preview-grid">
+            <div class="prize-preview-item first">
+              <span class="prize-rank">🥇 1st Place</span>
+              <span class="prize-amount">${(tournament.prizePoolSol * 0.5).toFixed(3)} SOL</span>
+              <span class="prize-percentage">50%</span>
+            </div>
+            <div class="prize-preview-item second">
+              <span class="prize-rank">🥈 2nd Place</span>
+              <span class="prize-amount">${(tournament.prizePoolSol * 0.3).toFixed(3)} SOL</span>
+              <span class="prize-percentage">30%</span>
+            </div>
+            <div class="prize-preview-item third">
+              <span class="prize-rank">🥉 3rd Place</span>
+              <span class="prize-amount">${(tournament.prizePoolSol * 0.2).toFixed(3)} SOL</span>
+              <span class="prize-percentage">20%</span>
+            </div>
+          </div>
+          <div class="prize-note">
+            <i class="fas fa-info-circle"></i>
+            <span>Prize pool grows as more participants join! ${tournament.bonusJackpot > 0 ? 'SWARS entries get bonus jackpot rewards.' : ''}</span>
           </div>
         </div>
 
@@ -1593,6 +1647,11 @@ class TournamentManager {
       await this.loadUserPositions(tournamentId);
       console.log('✅ Initial load: Portfolio and positions loaded');
 
+      // Load potential winnings for user
+      if (authState.isAuthenticated) {
+        await this.loadPotentialWinnings(tournamentId);
+      }
+
       // Load leaderboard
       this.updateLeaderboard(tournament.leaderboard || []);
 
@@ -1601,6 +1660,79 @@ class TournamentManager {
       console.error('❌ Error loading tournament interface:', error);
       showNotification('Failed to load tournament interface', 'error');
     }
+  }
+
+  // Load potential winnings for the current user
+  async loadPotentialWinnings(tournamentId) {
+    try {
+      if (!authState.walletAddress) return;
+
+      console.log(`🎯 Loading potential winnings for ${authState.walletAddress}`);
+
+      const response = await fetch(`/api/tournaments/${tournamentId}/potential-winnings/${authState.walletAddress}`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const winningsData = await response.json();
+      this.updatePotentialWinningsDisplay(winningsData);
+
+    } catch (error) {
+      console.error('❌ Error loading potential winnings:', error);
+      // Don't show error notification for this as it's not critical
+    }
+  }
+
+  // Update potential winnings display
+  updatePotentialWinningsDisplay(winningsData) {
+    const winningsContainer = document.getElementById('potentialWinnings');
+    if (!winningsContainer) return;
+
+    if (winningsData.rank === null) {
+      winningsContainer.innerHTML = `
+        <div class="winnings-info not-participating">
+          <i class="fas fa-info-circle"></i>
+          <span>Not participating in this tournament</span>
+        </div>
+      `;
+      return;
+    }
+
+    let winningsContent = '';
+    if (winningsData.rank <= 3 && winningsData.prizeInfo) {
+      const prize = winningsData.prizeInfo;
+      winningsContent = `
+        <div class="winnings-info in-prize">
+          <div class="current-position">
+            <span class="position-label">Current Position:</span>
+            <span class="position-rank">#${winningsData.rank}</span>
+          </div>
+          <div class="potential-prize">
+            <span class="prize-label">Potential Prize:</span>
+            <span class="prize-amount">${prize.solPrize.toFixed(4)} SOL</span>
+            ${prize.bonusJackpot > 0 ? `<span class="bonus-amount">+${prize.bonusJackpot.toFixed(0)} SWARS</span>` : ''}
+          </div>
+          <div class="prize-tier">
+            <span class="tier-info">${prize.label} (${(prize.percentage * 100).toFixed(0)}%)</span>
+          </div>
+        </div>
+      `;
+    } else {
+      winningsContent = `
+        <div class="winnings-info out-of-prize">
+          <div class="current-position">
+            <span class="position-label">Current Position:</span>
+            <span class="position-rank">#${winningsData.rank} / ${winningsData.totalParticipants}</span>
+          </div>
+          <div class="motivation">
+            <i class="fas fa-arrow-up"></i>
+            <span>Climb to top 3 to win prizes!</span>
+          </div>
+        </div>
+      `;
+    }
+
+    winningsContainer.innerHTML = winningsContent;
   }
 
   // Update tournament header info
@@ -2418,6 +2550,11 @@ class TournamentManager {
     this.portfolioUpdateInterval = setInterval(async () => {
       await this.loadUserPortfolio(tournamentId);
       await this.loadUserPositions(tournamentId);
+
+      // Update potential winnings
+      if (authState.isAuthenticated) {
+        await this.loadPotentialWinnings(tournamentId);
+      }
     }, 5000);
   }
 
@@ -2660,6 +2797,134 @@ class TournamentManager {
 
     // For now, show the join modal
     this.showJoinTournamentModal(tournament);
+  }
+
+  // Show detailed prize structure modal
+  async showPrizeDetails(tournamentId) {
+    try {
+      console.log(`💰 Showing prize details for tournament ${tournamentId}`);
+
+      // Fetch detailed prize structure
+      const response = await fetch(`/api/tournaments/${tournamentId}/prize-structure`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const prizeStructure = await response.json();
+
+      // Create or get existing modal
+      let modal = document.getElementById('prizeDetailsModal');
+      if (!modal) {
+        modal = this.createPrizeDetailsModal();
+      }
+
+      // Update modal content
+      const modalContent = modal.querySelector('#prizeDetailsContent');
+      modalContent.innerHTML = `
+        <div class="prize-details-header">
+          <h3><i class="fas fa-trophy"></i> Prize Structure</h3>
+          <p>Tournament: ${prizeStructure.tournamentId}</p>
+        </div>
+
+        <div class="prize-pool-summary">
+          <div class="pool-stat">
+            <span class="pool-label">Total SOL Prize Pool</span>
+            <span class="pool-value">${prizeStructure.totalSolPrize.toFixed(4)} SOL</span>
+          </div>
+          <div class="pool-stat">
+            <span class="pool-label">Bonus Jackpot (SWARS entries)</span>
+            <span class="pool-value">${prizeStructure.totalBonusJackpot.toFixed(0)} SWARS</span>
+          </div>
+          <div class="pool-stat">
+            <span class="pool-label">Current Participants</span>
+            <span class="pool-value">${prizeStructure.participantCount}/${prizeStructure.maxParticipants}</span>
+          </div>
+        </div>
+
+        <div class="prize-distribution">
+          <h4>Prize Distribution</h4>
+          <div class="payout-tiers">
+            ${prizeStructure.payouts.map(payout => `
+              <div class="payout-tier">
+                <div class="tier-info">
+                  <span class="tier-rank">${payout.label}</span>
+                  <span class="tier-percentage">${(payout.percentage * 100).toFixed(0)}%</span>
+                </div>
+                <div class="tier-rewards">
+                  <div class="reward-item">
+                    <span class="reward-label">SOL Prize:</span>
+                    <span class="reward-value">${payout.solPrize.toFixed(4)} SOL</span>
+                  </div>
+                  ${payout.bonusJackpot > 0 ? `
+                    <div class="reward-item bonus">
+                      <span class="reward-label">Bonus (SWARS entries):</span>
+                      <span class="reward-value">+${payout.bonusJackpot.toFixed(0)} SWARS</span>
+                    </div>
+                  ` : ''}
+                  <div class="reward-total">
+                    <span class="reward-label">Total Value:</span>
+                    <span class="reward-value">${payout.totalValue.toFixed(4)} SOL equiv.</span>
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="prize-info">
+          <div class="info-section">
+            <h5><i class="fas fa-info-circle"></i> How It Works</h5>
+            <ul>
+              <li>Entry fees are split: ${(prizeStructure.prizePoolPercentage * 100).toFixed(0)}% goes to prize pool, ${(prizeStructure.platformFee / prizeStructure.entryFeeSol * 100).toFixed(0)}% platform fee</li>
+              <li>SOL entries contribute directly to the main prize pool</li>
+              <li>SWARS entries contribute to bonus jackpot with ${((prizeStructure.totalBonusJackpot / Math.max(1, prizeStructure.participantCount)) / prizeStructure.entryFeeSwars * 100).toFixed(0)}% bonus multiplier</li>
+              <li>Only top 3 finishers receive prizes</li>
+              <li>Prize pool grows as more participants join!</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="prize-actions">
+          <button class="btn btn-secondary" onclick="closePrizeDetailsModal()">Close</button>
+        </div>
+      `;
+
+      modal.classList.add('active');
+
+    } catch (error) {
+      console.error('❌ Error showing prize details:', error);
+      safeShowNotification('Failed to load prize details', 'error');
+    }
+  }
+
+  // Create prize details modal
+  createPrizeDetailsModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'prizeDetailsModal';
+    modal.innerHTML = `
+      <div class="modal-content prize-details-modal">
+        <div class="modal-header">
+          <button class="modal-close" onclick="closePrizeDetailsModal()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div id="prizeDetailsContent" class="modal-body">
+          <!-- Content will be populated dynamically -->
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Close modal when clicking outside
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        modal.classList.remove('active');
+      }
+    });
+
+    return modal;
   }
 
   // Update leaderboard display
@@ -2918,6 +3183,233 @@ class TournamentManager {
       }
     ];
   }
+
+  // Load user's unclaimed prizes
+  async loadUserPrizes() {
+    try {
+      if (!authState.walletAddress) return;
+
+      console.log(`💰 Loading prizes for ${authState.walletAddress}`);
+
+      const response = await fetch(`/api/prizes/unclaimed/${authState.walletAddress}`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const unclaimedPrizes = await response.json();
+      this.displayUserPrizes(unclaimedPrizes);
+
+    } catch (error) {
+      console.error('❌ Error loading user prizes:', error);
+      // Don't show error notification as this is not critical
+    }
+  }
+
+  // Display user's prizes
+  displayUserPrizes(prizes) {
+    const prizesSection = document.getElementById('prizesSection');
+    const prizeCount = document.getElementById('prizeCount');
+    const prizesContainer = document.getElementById('prizesContainer');
+
+    if (!prizesSection || !prizeCount || !prizesContainer) return;
+
+    if (prizes.length === 0) {
+      prizesSection.style.display = 'none';
+      return;
+    }
+
+    // Show prizes section
+    prizesSection.style.display = 'block';
+    prizeCount.textContent = prizes.length;
+
+    // Clear container
+    prizesContainer.innerHTML = '';
+
+    prizes.forEach(prize => {
+      const prizeCard = this.createPrizeCard(prize);
+      prizesContainer.appendChild(prizeCard);
+    });
+  }
+
+  // Create prize card element
+  createPrizeCard(prize) {
+    const card = document.createElement('div');
+    card.className = 'prize-card';
+    card.setAttribute('data-tournament-id', prize.tournamentId);
+
+    const rankEmoji = prize.rank === 1 ? '🥇' : prize.rank === 2 ? '🥈' : '🥉';
+
+    card.innerHTML = `
+      <div class="prize-header">
+        <div class="prize-rank">${rankEmoji} ${prize.rank}${this.getOrdinalSuffix(prize.rank)} Place</div>
+        <div class="prize-tournament">${prize.tournament.name}</div>
+      </div>
+
+      <div class="prize-details">
+        <div class="prize-amounts">
+          ${prize.solPrize > 0 ? `
+            <div class="prize-amount sol">
+              <span class="amount">${prize.solPrize.toFixed(4)} SOL</span>
+              <span class="label">Main Prize</span>
+            </div>
+          ` : ''}
+          ${prize.swarsPrize > 0 ? `
+            <div class="prize-amount swars">
+              <span class="amount">${prize.swarsPrize.toFixed(0)} SWARS</span>
+              <span class="label">Bonus Prize</span>
+            </div>
+          ` : ''}
+        </div>
+
+        <div class="prize-info">
+          <div class="tournament-type">${prize.tournament.type}</div>
+          <div class="tournament-date">${new Date(prize.tournament.endTime).toLocaleDateString()}</div>
+        </div>
+      </div>
+
+      <div class="prize-actions">
+        <button class="btn btn-primary claim-prize-btn" onclick="tournamentManager.claimPrize('${prize.tournamentId}')">
+          <i class="fas fa-hand-holding-usd"></i>
+          Claim Prize
+        </button>
+      </div>
+    `;
+
+    return card;
+  }
+
+  // Get ordinal suffix for numbers
+  getOrdinalSuffix(num) {
+    const j = num % 10;
+    const k = num % 100;
+    if (j === 1 && k !== 11) return 'st';
+    if (j === 2 && k !== 12) return 'nd';
+    if (j === 3 && k !== 13) return 'rd';
+    return 'th';
+  }
+
+  // Claim a prize
+  async claimPrize(tournamentId) {
+    try {
+      // Enhanced security checks
+      if (!authState.walletAddress) {
+        showNotification('Please connect your wallet first', 'error');
+        return;
+      }
+
+      if (!authState.isAuthenticated) {
+        showNotification('Please authenticate your wallet first', 'error');
+        return;
+      }
+
+      // Prevent multiple simultaneous claims
+      if (this.claimInProgress) {
+        showNotification('Prize claim already in progress', 'warning');
+        return;
+      }
+
+      console.log(`💰 Claiming prize for tournament ${tournamentId}`);
+
+      // Set claim in progress flag
+      this.claimInProgress = true;
+
+      // Show loading state
+      const claimBtn = document.querySelector(`[data-tournament-id="${tournamentId}"] .claim-prize-btn`);
+      if (claimBtn) {
+        claimBtn.disabled = true;
+        claimBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending Prizes...';
+      }
+
+      const response = await fetch('/api/prizes/claim', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          walletAddress: authState.walletAddress,
+          tournamentId
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to claim prize');
+      }
+
+      const result = await response.json();
+
+      // Show success notification with transaction hashes if available
+      let message = `🎉 Prize claimed!`;
+      if (result.solPrize > 0) {
+        message += ` ${result.solPrize.toFixed(4)} SOL sent to your wallet!`;
+      }
+      if (result.swarsPrize > 0) {
+        message += ` ${result.swarsPrize.toFixed(0)} SWARS tokens sent to your wallet!`;
+      }
+      if (result.transactionHashes && result.transactionHashes.length > 0) {
+        const txHashes = result.transactionHashes.map(tx => `${tx.type}: ${tx.signature.substring(0, 8)}...`).join(', ');
+        message += ` TX: ${txHashes}`;
+      }
+
+      showNotification(message, 'success');
+
+      // Reload prizes to update display
+      await this.loadUserPrizes();
+
+      // Update SWARS balance
+      if (window.loadSwarsBalance) {
+        await window.loadSwarsBalance();
+      }
+
+    } catch (error) {
+      console.error('❌ Error claiming prize:', error);
+      showNotification(`Failed to claim prize: ${error.message}`, 'error');
+
+      // Reset button state
+      const claimBtn = document.querySelector(`[data-tournament-id="${tournamentId}"] .claim-prize-btn`);
+      if (claimBtn) {
+        claimBtn.disabled = false;
+        claimBtn.innerHTML = '<i class="fas fa-hand-holding-usd"></i> Claim Prize';
+      }
+    } finally {
+      // Always reset the claim in progress flag
+      this.claimInProgress = false;
+    }
+  }
+
+  // Process SOL prize transfer
+  async processSolPrizeTransfer(solAmount) {
+    try {
+      console.log(`💸 Processing SOL prize transfer: ${solAmount} SOL`);
+
+      // For demo mode, simulate the transfer
+      if (!window.solana || !window.solana.isPhantom) {
+        console.log('🎮 Demo mode: Simulating SOL prize transfer');
+
+        // Simulate network delay
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        const demoTxHash = `demo_prize_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        showNotification(`Demo: Received ${solAmount.toFixed(4)} SOL prize!`, 'info');
+        return demoTxHash;
+      }
+
+      // In production, this would receive SOL from the treasury wallet
+      // For now, we'll simulate the transaction
+      console.log('🎮 Simulating SOL prize receipt...');
+
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const simulatedTxHash = `prize_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      showNotification(`Received ${solAmount.toFixed(4)} SOL prize!`, 'success');
+
+      return simulatedTxHash;
+
+    } catch (error) {
+      console.error('❌ Error processing SOL prize transfer:', error);
+      throw error;
+    }
+  }
 }
 
 // Global functions for modal controls
@@ -2942,6 +3434,13 @@ function closeJoinTournamentModal() {
 
 function closeTokenDetailsModal() {
   const modal = document.getElementById('tokenDetailsModal');
+  if (modal) {
+    modal.classList.remove('active');
+  }
+}
+
+function closePrizeDetailsModal() {
+  const modal = document.getElementById('prizeDetailsModal');
   if (modal) {
     modal.classList.remove('active');
   }
