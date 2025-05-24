@@ -1,7 +1,5 @@
 // User profile API for Vercel
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
+const { getPrismaClient, disconnectPrisma } = require('../_lib/prisma');
 
 module.exports = async function handler(req, res) {
   // Enable CORS
@@ -13,6 +11,8 @@ module.exports = async function handler(req, res) {
     res.status(200).end();
     return;
   }
+
+  const prisma = getPrismaClient();
 
   try {
     if (req.method === 'GET') {
@@ -116,6 +116,6 @@ module.exports = async function handler(req, res) {
       message: error.message
     });
   } finally {
-    await prisma.$disconnect();
+    await disconnectPrisma();
   }
 }

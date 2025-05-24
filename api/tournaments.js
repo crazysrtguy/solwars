@@ -1,7 +1,5 @@
 // Tournament API endpoints for Vercel
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
+const { getPrismaClient, disconnectPrisma } = require('./_lib/prisma');
 
 module.exports = async function handler(req, res) {
   // Enable CORS
@@ -14,11 +12,13 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  const prisma = getPrismaClient();
+
   try {
     if (req.method === 'GET') {
       // Get active tournaments
       console.log('🏆 Fetching active tournaments...');
-      
+
       const tournaments = await prisma.tournament.findMany({
         where: {
           status: {
@@ -158,6 +158,6 @@ module.exports = async function handler(req, res) {
       message: error.message
     });
   } finally {
-    await prisma.$disconnect();
+    await disconnectPrisma();
   }
 }

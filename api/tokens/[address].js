@@ -1,5 +1,5 @@
 // Individual token data API for Vercel deployment
-import axios from 'axios';
+const axios = require('axios');
 
 // Token metadata lookup
 const TOKEN_METADATA = {
@@ -29,10 +29,10 @@ const TOKEN_METADATA = {
 async function getTokenData(address) {
   try {
     console.log(`🔍 Fetching DexScreener data for token: ${address}`);
-    
+
     const response = await axios.get(
       `https://api.dexscreener.com/latest/dex/tokens/${address}`,
-      { 
+      {
         timeout: 10000,
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; SolWars/1.0)',
@@ -61,7 +61,7 @@ async function getTokenData(address) {
 
     // Get token metadata
     const metadata = TOKEN_METADATA[address] || {};
-    
+
     const tokenData = {
       address,
       name: metadata.name || bestPair.baseToken?.name || 'Unknown Token',
@@ -104,12 +104,12 @@ async function getTokenData(address) {
 // Fallback token data
 function getFallbackTokenData(address) {
   const metadata = TOKEN_METADATA[address] || { name: 'Unknown Token', symbol: 'UNKNOWN' };
-  
+
   // Generate some realistic mock data
   const basePrice = Math.random() * 100 + 0.01;
   const priceChange = (Math.random() - 0.5) * 20;
   const volume = Math.random() * 10000000;
-  
+
   return {
     address,
     name: metadata.name,
@@ -133,7 +133,17 @@ function getFallbackTokenData(address) {
   };
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
+  // Enable CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -146,20 +156,20 @@ export default async function handler(req, res) {
     }
 
     console.log(`🔍 Token data API request for: ${address}`);
-    
+
     const tokenData = await getTokenData(address);
-    
+
     if (tokenData) {
       res.status(200).json(tokenData);
     } else {
       res.status(404).json({ error: 'Token not found' });
     }
-    
+
   } catch (error) {
     console.error('❌ Token data API error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to fetch token data',
-      message: error.message 
+      message: error.message
     });
   }
 }

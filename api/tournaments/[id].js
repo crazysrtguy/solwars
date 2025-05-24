@@ -1,7 +1,5 @@
 // Tournament details API for Vercel
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
+const { getPrismaClient, disconnectPrisma } = require('../_lib/prisma');
 
 module.exports = async function handler(req, res) {
   // Enable CORS
@@ -19,6 +17,8 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  const prisma = getPrismaClient();
+
   try {
     const { id } = req.query;
 
@@ -32,7 +32,7 @@ module.exports = async function handler(req, res) {
       where: { id },
       include: {
         participants: {
-          include: { 
+          include: {
             user: {
               select: {
                 walletAddress: true,
@@ -67,7 +67,7 @@ module.exports = async function handler(req, res) {
     // Prize distribution percentages
     const prizeDistribution = {
       first: Math.floor(totalPrizePool * 0.50),
-      second: Math.floor(totalPrizePool * 0.30), 
+      second: Math.floor(totalPrizePool * 0.30),
       third: Math.floor(totalPrizePool * 0.20)
     };
 
@@ -107,6 +107,6 @@ module.exports = async function handler(req, res) {
       message: error.message
     });
   } finally {
-    await prisma.$disconnect();
+    await disconnectPrisma();
   }
 }

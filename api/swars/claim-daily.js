@@ -1,16 +1,14 @@
 // Daily login bonus claim API for Vercel
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
+const { getPrismaClient, disconnectPrisma } = require('../_lib/prisma');
 
 // Calculate progressive bonus based on streak
 function calculateProgressiveBonus(streak, user) {
   const baseBonus = 5;
   const dayBonus = streak.currentStreak * baseBonus;
-  
+
   // Weekly milestone bonus (every 7 days)
   const weeklyBonus = Math.floor(streak.currentStreak / 7) * 20;
-  
+
   return dayBonus + weeklyBonus;
 }
 
@@ -38,6 +36,8 @@ module.exports = async function handler(req, res) {
     }
 
     console.log(`🎁 Processing daily bonus claim for ${walletAddress}`);
+
+    const prisma = getPrismaClient();
 
     // Use database transaction to ensure atomicity
     const result = await prisma.$transaction(async (tx) => {
@@ -179,6 +179,6 @@ module.exports = async function handler(req, res) {
       error: error.message || 'Failed to claim daily bonus'
     });
   } finally {
-    await prisma.$disconnect();
+    await disconnectPrisma();
   }
 }

@@ -1,7 +1,5 @@
 // SWARS token balance API for Vercel
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
+const { getPrismaClient, disconnectPrisma } = require('../_lib/prisma');
 
 module.exports = async function handler(req, res) {
   // Enable CORS
@@ -18,6 +16,8 @@ module.exports = async function handler(req, res) {
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
+
+  const prisma = getPrismaClient();
 
   try {
     const { wallet } = req.query;
@@ -38,9 +38,9 @@ module.exports = async function handler(req, res) {
     const balance = user ? user.swarsTokenBalance : 0;
 
     console.log(`💰 SWARS balance for ${wallet}: ${balance}`);
-    res.status(200).json({ 
+    res.status(200).json({
       walletAddress: wallet,
-      balance 
+      balance
     });
 
   } catch (error) {
@@ -50,6 +50,6 @@ module.exports = async function handler(req, res) {
       message: error.message
     });
   } finally {
-    await prisma.$disconnect();
+    await disconnectPrisma();
   }
 }
