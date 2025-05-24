@@ -2,7 +2,7 @@
 const axios = require('axios');
 
 // You need to replace this with your actual Vercel URL
-const VERCEL_URL = process.env.VERCEL_URL || 'https://your-app.vercel.app';
+const VERCEL_URL = process.env.VERCEL_URL || 'https://solwars-bigch.vercel.app';
 
 async function testVercelDeployment() {
   console.log('🚀 Testing Vercel Deployment...');
@@ -19,7 +19,7 @@ async function testVercelDeployment() {
   for (const endpoint of endpoints) {
     try {
       console.log(`\n🧪 Testing ${endpoint}...`);
-      
+
       const response = await axios.get(`${VERCEL_URL}${endpoint}`, {
         timeout: 10000,
         headers: {
@@ -29,11 +29,11 @@ async function testVercelDeployment() {
 
       console.log(`✅ ${endpoint}: ${response.status}`);
       console.log(`📊 Response: ${JSON.stringify(response.data).substring(0, 100)}...`);
-      
+
     } catch (error) {
       console.log(`❌ ${endpoint}: ${error.response?.status || 'ERROR'}`);
       console.log(`📊 Error: ${error.message}`);
-      
+
       if (error.response?.data) {
         console.log(`📊 Response: ${JSON.stringify(error.response.data).substring(0, 200)}...`);
       }
@@ -43,7 +43,7 @@ async function testVercelDeployment() {
   // Test POST endpoint
   try {
     console.log(`\n🧪 Testing POST /api/tokens/prices...`);
-    
+
     const response = await axios.post(`${VERCEL_URL}/api/tokens/prices`, {
       tokenAddresses: ['So11111111111111111111111111111111111111112']
     }, {
@@ -56,7 +56,7 @@ async function testVercelDeployment() {
 
     console.log(`✅ POST /api/tokens/prices: ${response.status}`);
     console.log(`📊 Response: ${JSON.stringify(response.data).substring(0, 100)}...`);
-    
+
   } catch (error) {
     console.log(`❌ POST /api/tokens/prices: ${error.response?.status || 'ERROR'}`);
     console.log(`📊 Error: ${error.message}`);

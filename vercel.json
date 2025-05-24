@@ -3,17 +3,22 @@
   "functions": {
     "api/**/*.js": {
       "runtime": "nodejs18.x",
-      "maxDuration": 30
+      "maxDuration": 30,
+      "memory": 1024
     }
   },
   "env": {
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "PRISMA_GENERATE_DATAPROXY": "true"
   },
   "build": {
     "env": {
-      "PRISMA_GENERATE_DATAPROXY": "true"
+      "PRISMA_GENERATE_DATAPROXY": "true",
+      "NODE_ENV": "production"
     }
   },
+  "buildCommand": "cd api && npm install && npx prisma generate",
+  "installCommand": "npm install && cd api && npm install",
   "rewrites": [
     {
       "source": "/api/(.*)",
@@ -34,13 +39,22 @@
         },
         {
           "key": "Access-Control-Allow-Headers",
-          "value": "Content-Type, Authorization"
+          "value": "Content-Type, Authorization, X-Requested-With"
         },
         {
           "key": "Cache-Control",
           "value": "no-cache, no-store, must-revalidate"
+        },
+        {
+          "key": "Pragma",
+          "value": "no-cache"
+        },
+        {
+          "key": "Expires",
+          "value": "0"
         }
       ]
     }
-  ]
+  ],
+  "regions": ["iad1"]
 }

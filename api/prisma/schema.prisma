@@ -1,0 +1,218 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model for Solana wallet authentication
+model User {
+  id                String                 @id @default(uuid())
+  walletAddress     String                 @unique
+  username          String?
+  xUsername         String?                // X (Twitter) username
+  bio               String?                // User bio/description
+  profileImage      String?                // Base64 encoded profile image
+  swarsTokenBalance Float                  @default(0) // Native SWARS token balance
+  totalWinnings     Float                  @default(0) // Total SOL won
+  tournamentsWon    Int                    @default(0)
+  tournamentsPlayed Int                    @default(0)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  leaderboard       Leaderboard?
+  participations    TournamentParticipant[]
+  transactions      TokenTransaction[]
+}
+
+// Leaderboard model to track game scores
+model Leaderboard {
+  id           String    @id @default(uuid())
+  userId       String    @unique
+  user         User      @relation(fields: [userId], references: [id])
+  score        Float     @default(0)
+  highScore    Float     @default(0)
+  gamesPlayed  Int       @default(0)
+  lastGameDate DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// Game session model to track individual game sessions
+model GameSession {
+  id            String   @id @default(uuid())
+  walletAddress String
+  score         Float
+  netWorth      Float
+  days          Int
+  startDate     DateTime @default(now())
+  endDate       DateTime?
+  completed     Boolean  @default(false)
+}
+
+// Tournament model for epic trading competitions
+model Tournament {
+  id              String                 @id @default(uuid())
+  name            String
+  description     String?
+  type            TournamentType         @default(DAILY)
+  status          TournamentStatus       @default(UPCOMING)
+  entryFeeSol     Float                  @default(0.01) // SOL entry fee
+  entryFeeSwars   Float                  @default(100)  // SWARS token entry fee
+  prizePoolSol    Float                  @default(0)    // SOL prize pool
+  bonusJackpot    Float                  @default(0)    // Bonus jackpot for SWARS entries
+  maxParticipants Int                    @default(1000)
+  startTime       DateTime
+  endTime         DateTime
+  selectedTokens  Json                   // Array of real Solana token addresses
+  tokenMetadata   Json?                  // Cached token metadata
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  participants    TournamentParticipant[]
+  priceSnapshots  TokenPriceSnapshot[]
+  prizeClaims     PrizeClaim[]
+}
+
+// Tournament participants
+model TournamentParticipant {
+  id               String     @id @default(uuid())
+  tournamentId     String
+  userId           String
+  walletAddress    String
+  entryType        EntryType  // SOL or SWARS
+  startingBalance  Float      @default(10000) // Virtual starting balance
+  currentBalance   Float      @default(10000)
+  portfolio        Json       @default("{}") // Token holdings
+  trades           Json       @default("[]") // Trade history
+  finalRank        Int?
+  prizeWon         Float      @default(0)
+  bonusWon         Float      @default(0)
+  prizeClaimed     Boolean    @default(false)
+  prizeClaimedAt   DateTime?
+  joinedAt         DateTime   @default(now())
+  tournament       Tournament @relation(fields: [tournamentId], references: [id])
+  user             User       @relation(fields: [userId], references: [id])
+
+  @@unique([tournamentId, userId])
+}
+
+// Prize claims tracking
+model PrizeClaim {
+  id               String     @id @default(uuid())
+  tournamentId     String
+  walletAddress    String
+  rank             Int
+  solPrize         Float
+  swarsPrize       Float
+  claimed          Boolean    @default(false)
+  claimedAt        DateTime?
+  transactionHash  String?    // SOL transaction hash
+  createdAt        DateTime   @default(now())
+  tournament       Tournament @relation(fields: [tournamentId], references: [id])
+
+  @@unique([tournamentId, walletAddress])
+}
+
+// Real-time token price snapshots
+model TokenPriceSnapshot {
+  id           String     @id @default(uuid())
+  tournamentId String?
+  tokenAddress String
+  tokenSymbol  String
+  priceUsd     Float
+  marketCap    Float?
+  volume24h    Float?
+  priceChange  Float?
+  timestamp    DateTime   @default(now())
+  source       String     @default("dexscreener")
+  tournament   Tournament? @relation(fields: [tournamentId], references: [id])
+
+  @@index([tokenAddress, timestamp])
+}
+
+// Token transactions for tracking
+model TokenTransaction {
+  id           String          @id @default(uuid())
+  userId       String
+  tournamentId String?
+  tokenAddress String
+  tokenSymbol  String
+  type         TransactionType
+  amount       Float
+  price        Float
+  totalValue   Float
+  timestamp    DateTime        @default(now())
+  user         User            @relation(fields: [userId], references: [id])
+
+  @@index([userId, tournamentId])
+}
+
+// Native SWARS token transactions
+model SwarsTransaction {
+  id            String      @id @default(uuid())
+  walletAddress String
+  type          SwarsType
+  amount        Float
+  description   String?
+  txSignature   String?     // Solana transaction signature
+  timestamp     DateTime    @default(now())
+}
+
+// Daily login streak tracking
+model LoginStreak {
+  id                String   @id @default(uuid())
+  walletAddress     String   @unique
+  currentStreak     Int      @default(0)
+  longestStreak     Int      @default(0)
+  lastLoginDate     DateTime?
+  lastClaimDate     DateTime?
+  totalLogins       Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// Jackpot tracking
+model JackpotPool {
+  id            String   @id @default(uuid())
+  tournamentId  String?  @unique
+  totalPool     Float    @default(0)
+  swarsContrib  Float    @default(0) // Contribution from SWARS entries
+  bonusMultip   Float    @default(1.5) // Bonus multiplier
+  lastUpdated   DateTime @default(now())
+}
+
+// Enums
+enum TournamentType {
+  FLASH      // 1-4 hours
+  DAILY      // 24 hours
+  WEEKLY     // 7 days
+  SPECIAL    // Custom duration
+}
+
+enum TournamentStatus {
+  UPCOMING
+  ACTIVE
+  ENDED
+  CANCELLED
+}
+
+enum EntryType {
+  SOL
+  SWARS
+}
+
+enum TransactionType {
+  BUY
+  SELL
+}
+
+enum SwarsType {
+  EARNED
+  SPENT
+  BONUS
+  AIRDROP
+}
