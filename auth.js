@@ -612,6 +612,7 @@ const startCountdownTimer = () => {
 const updateAuthUI = () => {
   const authButton = document.getElementById('authButton');
   const userInfo = document.getElementById('userInfo');
+  const dashboardBtn = document.getElementById('dashboardBtn');
 
   if (!authButton || !userInfo) {
     console.warn('Auth UI elements not found');
@@ -630,10 +631,20 @@ const updateAuthUI = () => {
       </div>
     `;
     userInfo.style.display = 'block';
+
+    // Show dashboard button when authenticated
+    if (dashboardBtn) {
+      dashboardBtn.style.display = 'inline-block';
+    }
   } else {
     authButton.textContent = 'Connect Wallet';
     authButton.onclick = connectWallet;
     userInfo.style.display = 'none';
+
+    // Hide dashboard button when not authenticated
+    if (dashboardBtn) {
+      dashboardBtn.style.display = 'none';
+    }
   }
 
   // Update SWARS UI

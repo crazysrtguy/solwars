@@ -88,6 +88,29 @@ class TournamentService {
 
       console.log(`🎯 Tournament type: ${config.type} -> ${tournamentType}`);
 
+      // Remove duplicates and optimize token data for storage
+      const uniqueTokens = [];
+      const seenAddresses = new Set();
+
+      for (const token of selectedTokens) {
+        if (!seenAddresses.has(token.address)) {
+          seenAddresses.add(token.address);
+          // Store only essential token data to reduce database size
+          uniqueTokens.push({
+            address: token.address,
+            name: token.name,
+            symbol: token.symbol,
+            price: token.price || token.priceUsd || 0,
+            image: token.image || token.icon,
+            priceChange24h: token.priceChange24h || 0,
+            volume24h: token.volume24h || 0,
+            marketCap: token.marketCap || 0
+          });
+        }
+      }
+
+      console.log(`🎯 Optimized tokens: ${selectedTokens.length} -> ${uniqueTokens.length} (removed ${selectedTokens.length - uniqueTokens.length} duplicates)`);
+
       // Prepare tournament data
       const tournamentData = {
         name: config.name,
@@ -99,8 +122,8 @@ class TournamentService {
         maxParticipants: parseInt(config.maxParticipants) || 1000,
         startTime,
         endTime,
-        selectedTokens: selectedTokens,
-        tokenMetadata: selectedTokens.reduce((acc, token) => {
+        selectedTokens: uniqueTokens,
+        tokenMetadata: uniqueTokens.reduce((acc, token) => {
           acc[token.address] = token;
           return acc;
         }, {})
@@ -283,13 +306,44 @@ class TournamentService {
         }
       });
 
-      return tournaments.map(tournament => ({
-        ...tournament,
-        participantCount: tournament._count.participants,
-        spotsLeft: tournament.maxParticipants - tournament._count.participants,
-        timeUntilStart: tournament.startTime.getTime() - Date.now(),
-        timeUntilEnd: tournament.endTime.getTime() - Date.now()
-      }));
+      return tournaments.map(tournament => {
+        // Optimize selectedTokens to only include essential data for the frontend
+        const optimizedTokens = Array.isArray(tournament.selectedTokens)
+          ? tournament.selectedTokens.map(token => ({
+              address: token.address,
+              name: token.name,
+              symbol: token.symbol,
+              price: token.price || token.priceUsd || 0,
+              image: token.image || token.icon,
+              priceChange24h: token.priceChange24h || 0
+            }))
+          : [];
+
+        return {
+          id: tournament.id,
+          name: tournament.name,
+          description: tournament.description,
+          type: tournament.type,
+          status: tournament.status,
+          entryFeeSol: tournament.entryFeeSol,
+          entryFeeSwars: tournament.entryFeeSwars,
+          prizePoolSol: tournament.prizePoolSol,
+          bonusJackpot: tournament.bonusJackpot,
+          maxParticipants: tournament.maxParticipants,
+          startTime: tournament.startTime,
+          endTime: tournament.endTime,
+          createdAt: tournament.createdAt,
+          updatedAt: tournament.updatedAt,
+          selectedTokens: optimizedTokens,
+          participants: tournament.participants,
+          participantCount: tournament._count.participants,
+          spotsLeft: tournament.maxParticipants - tournament._count.participants,
+          timeUntilStart: tournament.startTime.getTime() - Date.now(),
+          timeUntilEnd: tournament.endTime.getTime() - Date.now(),
+          isJoinable: tournament.status === 'UPCOMING' ||
+                     (tournament.status === 'ACTIVE' && tournament._count.participants < tournament.maxParticipants)
+        };
+      });
     } catch (error) {
       console.error('❌ Error fetching active tournaments:', error.message);
       return [];

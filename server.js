@@ -34,7 +34,8 @@ const tournamentScheduler = new TournamentScheduler(tokenService);
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Increase limit for profile images
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(express.static('.')); // Serve static files from the current directory
 
 console.log('🚀 SolWars Tournament Platform v2.0 - Initializing...');
@@ -273,6 +274,278 @@ app.get('/api/top-traders', async (req, res) => {
   }
 });
 
+// Get user profile
+app.get('/api/user/profile', async (req, res) => {
+  try {
+    const { wallet } = req.query;
+
+    if (!wallet) {
+      return res.status(400).json({ error: 'Wallet address required' });
+    }
+
+    console.log(`👤 Fetching profile for wallet: ${wallet}`);
+
+    const user = await prisma.user.findUnique({
+      where: { walletAddress: wallet },
+      select: {
+        id: true,
+        walletAddress: true,
+        username: true,
+        xUsername: true,
+        bio: true,
+        profileImage: true,
+        totalWinnings: true,
+        tournamentsWon: true,
+        tournamentsPlayed: true,
+        swarsTokenBalance: true,
+        createdAt: true
+      }
+    });
+
+    if (!user) {
+      // Return default profile for new users instead of 404
+      console.log(`👤 User not found for ${wallet}, returning default profile`);
+      return res.json({
+        id: null,
+        walletAddress: wallet,
+        username: null,
+        xUsername: null,
+        bio: null,
+        profileImage: null,
+        totalWinnings: 0,
+        tournamentsWon: 0,
+        tournamentsPlayed: 0,
+        swarsTokenBalance: 0,
+        createdAt: new Date()
+      });
+    }
+
+    res.json(user);
+  } catch (error) {
+    console.error('❌ Error fetching user profile:', error);
+    res.status(500).json({ error: 'Server error fetching user profile' });
+  }
+});
+
+// Update user profile
+app.post('/api/user/profile', async (req, res) => {
+  try {
+    const { walletAddress, username, xUsername, bio, profileImage } = req.body;
+
+    if (!walletAddress) {
+      return res.status(400).json({ error: 'Wallet address required' });
+    }
+
+    console.log(`💾 Updating profile for wallet: ${walletAddress}`);
+
+    // Validate username uniqueness if provided
+    if (username) {
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          username: username,
+          walletAddress: { not: walletAddress }
+        }
+      });
+
+      if (existingUser) {
+        return res.status(400).json({ error: 'Username already taken' });
+      }
+    }
+
+    const user = await prisma.user.upsert({
+      where: { walletAddress },
+      update: {
+        username: username || null,
+        xUsername: xUsername || null,
+        bio: bio || null,
+        profileImage: profileImage || null
+      },
+      create: {
+        walletAddress,
+        username: username || null,
+        xUsername: xUsername || null,
+        bio: bio || null,
+        profileImage: profileImage || null,
+        swarsTokenBalance: 0,
+        totalWinnings: 0,
+        tournamentsWon: 0,
+        tournamentsPlayed: 0
+      },
+      select: {
+        id: true,
+        walletAddress: true,
+        username: true,
+        xUsername: true,
+        bio: true,
+        profileImage: true,
+        totalWinnings: true,
+        tournamentsWon: true,
+        tournamentsPlayed: true,
+        swarsTokenBalance: true,
+        createdAt: true
+      }
+    });
+
+    res.json(user);
+  } catch (error) {
+    console.error('❌ Error updating user profile:', error);
+    res.status(500).json({ error: 'Server error updating user profile' });
+  }
+});
+
+// Get user stats
+app.get('/api/user/stats', async (req, res) => {
+  try {
+    const { wallet } = req.query;
+
+    if (!wallet) {
+      return res.status(400).json({ error: 'Wallet address required' });
+    }
+
+    console.log(`📊 Fetching stats for wallet: ${wallet}`);
+
+    const user = await prisma.user.findUnique({
+      where: { walletAddress: wallet },
+      select: {
+        totalWinnings: true,
+        tournamentsWon: true,
+        tournamentsPlayed: true,
+        swarsTokenBalance: true,
+        createdAt: true
+      }
+    });
+
+    if (!user) {
+      // Return default stats for new users
+      return res.json({
+        totalWinnings: 0,
+        tournamentsWon: 0,
+        tournamentsPlayed: 0,
+        swarsTokenBalance: 0,
+        createdAt: new Date()
+      });
+    }
+
+    res.json(user);
+  } catch (error) {
+    console.error('❌ Error fetching user stats:', error);
+    res.status(500).json({ error: 'Server error fetching user stats' });
+  }
+});
+
+// Get user activity
+app.get('/api/user/activity', async (req, res) => {
+  try {
+    const { wallet, limit = 10 } = req.query;
+
+    if (!wallet) {
+      return res.status(400).json({ error: 'Wallet address required' });
+    }
+
+    console.log(`📋 Fetching activity for wallet: ${wallet}`);
+
+    // Get user's tournament participations and other activities
+    const user = await prisma.user.findUnique({
+      where: { walletAddress: wallet },
+      include: {
+        participations: {
+          include: {
+            tournament: true
+          },
+          orderBy: { joinedAt: 'desc' },
+          take: parseInt(limit)
+        }
+      }
+    });
+
+    if (!user) {
+      console.log(`📋 User not found for ${wallet}, returning default activities`);
+      // Return default activities for new users
+      const defaultActivities = [
+        {
+          id: 'welcome-1',
+          type: 'profile_created',
+          description: 'Welcome to SolWars! Your profile has been created.',
+          amount: null,
+          timestamp: new Date()
+        },
+        {
+          id: 'welcome-2',
+          type: 'daily_bonus',
+          description: 'Daily bonus available! Connect your wallet to claim.',
+          amount: null,
+          timestamp: new Date()
+        }
+      ];
+      return res.json(defaultActivities);
+    }
+
+    // Convert tournament participations to activity format
+    const activities = user.participations.map(participation => {
+      const tournament = participation.tournament;
+      let description = '';
+      let type = '';
+      let amount = null;
+
+      if (tournament.status === 'completed' && participation.finalPosition === 1) {
+        description = `Won tournament "${tournament.name}"`;
+        type = 'tournament_win';
+        amount = tournament.prizePool;
+      } else if (tournament.status === 'completed') {
+        description = `Completed tournament "${tournament.name}" (Position: ${participation.finalPosition || 'N/A'})`;
+        type = 'tournament_complete';
+        amount = participation.finalPosition <= 3 ? tournament.prizePool * 0.1 : null;
+      } else if (tournament.status === 'active') {
+        description = `Currently playing in "${tournament.name}"`;
+        type = 'tournament_join';
+      } else {
+        description = `Joined tournament "${tournament.name}"`;
+        type = 'tournament_join';
+      }
+
+      return {
+        id: participation.id,
+        type,
+        description,
+        amount,
+        timestamp: participation.joinedAt,
+        tournamentId: tournament.id
+      };
+    });
+
+    // Add some mock activities for demonstration
+    if (activities.length < 3) {
+      const mockActivities = [
+        {
+          id: 'mock-1',
+          type: 'daily_bonus',
+          description: 'Claimed daily login bonus',
+          amount: null,
+          timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000) // 1 day ago
+        },
+        {
+          id: 'mock-2',
+          type: 'profile_update',
+          description: 'Updated profile information',
+          amount: null,
+          timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) // 3 days ago
+        }
+      ];
+      activities.push(...mockActivities);
+    }
+
+    // Sort by timestamp and limit
+    const sortedActivities = activities
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, parseInt(limit));
+
+    res.json(sortedActivities);
+  } catch (error) {
+    console.error('❌ Error fetching user activity:', error);
+    res.status(500).json({ error: 'Server error fetching user activity' });
+  }
+});
+
 // ===== EPIC TOURNAMENT ENDPOINTS =====
 
 // Get user's tournaments (must come before /api/tournaments/:id to avoid conflicts)
@@ -333,6 +606,16 @@ app.get('/api/tournaments/user/:walletAddress', async (req, res) => {
 // Get active tournaments with enhanced stats
 app.get('/api/tournaments', async (req, res) => {
   try {
+    // Set aggressive no-cache headers to prevent browser caching issues
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    });
+
     console.log('🏆 Fetching active tournaments...');
     const tournaments = await tournamentService.getActiveTournaments();
 
@@ -364,6 +647,56 @@ app.get('/api/tournaments', async (req, res) => {
     res.json(response);
   } catch (error) {
     console.error('❌ Error fetching tournaments:', error);
+    res.status(500).json({
+      error: 'Server error fetching tournaments',
+      tournaments: [],
+      categories: { active: [], upcoming: [], joinable: [] },
+      stats: { total: 0, active: 0, upcoming: 0, joinable: 0 }
+    });
+  }
+});
+
+// Alternative endpoint to bypass cache issues
+app.get('/api/tournaments-fresh', async (req, res) => {
+  try {
+    // Set aggressive no-cache headers
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+
+    console.log('🏆 Fetching active tournaments (fresh endpoint)...');
+    const tournaments = await tournamentService.getActiveTournaments();
+
+    // Calculate stats for the availability indicator
+    const activeTournaments = tournaments.filter(t => t.status === 'ACTIVE');
+    const upcomingTournaments = tournaments.filter(t => t.status === 'UPCOMING');
+    const joinableTournaments = tournaments.filter(t =>
+      t.status === 'UPCOMING' ||
+      (t.status === 'ACTIVE' && t.participantCount < t.maxParticipants)
+    );
+
+    const response = {
+      tournaments,
+      categories: {
+        active: activeTournaments,
+        upcoming: upcomingTournaments,
+        joinable: joinableTournaments
+      },
+      stats: {
+        total: tournaments.length,
+        active: activeTournaments.length,
+        upcoming: upcomingTournaments.length,
+        joinable: joinableTournaments.length
+      },
+      message: `Found ${tournaments.length} tournaments (${joinableTournaments.length} joinable)`
+    };
+
+    console.log(`📊 Tournament Stats (Fresh): ${response.stats.total} total, ${response.stats.active} active, ${response.stats.upcoming} upcoming, ${response.stats.joinable} joinable`);
+    res.json(response);
+  } catch (error) {
+    console.error('❌ Error fetching tournaments (fresh):', error);
     res.status(500).json({
       error: 'Server error fetching tournaments',
       tournaments: [],

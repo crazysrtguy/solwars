@@ -1648,41 +1648,51 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Auto-fade after 48 seconds
-  setTimeout(() => {
-    // Start fading out the intro
-    introContainer.classList.add('fade-out');
-
-    // After the fade-out transition completes, show the game
+  // Auto-fade after 48 seconds (only if intro container exists)
+  if (introContainer) {
     setTimeout(() => {
+      // Start fading out the intro
+      introContainer.classList.add('fade-out');
+
+      // After the fade-out transition completes, show the game
+      setTimeout(() => {
+        // Keep music playing (removed the pause)
+        introContainer.style.display = 'none';
+        if (gameContainer) {
+          gameContainer.style.display = 'block';
+
+          // Add a small delay before starting the fade-in
+          setTimeout(() => {
+            gameContainer.classList.add('fade-in');
+          }, 100);
+        }
+      }, 2000); // This matches the transition duration in CSS
+    }, 48000); // 48 seconds total for the intro
+  }
+
+  if (skipIntroBtn) {
+    skipIntroBtn.addEventListener('click', () => {
       // Keep music playing (removed the pause)
-      introContainer.style.display = 'none';
-      gameContainer.style.display = 'block';
 
-      // Add a small delay before starting the fade-in
-      setTimeout(() => {
-        gameContainer.classList.add('fade-in');
-      }, 100);
-    }, 2000); // This matches the transition duration in CSS
-  }, 48000); // 48 seconds total for the intro
+      // Apply the fade-out effect
+      if (introContainer) {
+        introContainer.classList.add('fade-out');
 
-  skipIntroBtn.addEventListener('click', () => {
-    // Keep music playing (removed the pause)
+        // After the fade-out transition completes, show the game
+        setTimeout(() => {
+          introContainer.style.display = 'none';
+          if (gameContainer) {
+            gameContainer.style.display = 'block';
 
-    // Apply the fade-out effect
-    introContainer.classList.add('fade-out');
-
-    // After the fade-out transition completes, show the game
-    setTimeout(() => {
-      introContainer.style.display = 'none';
-      gameContainer.style.display = 'block';
-
-      // Add a small delay before starting the fade-in
-      setTimeout(() => {
-        gameContainer.classList.add('fade-in');
-      }, 100);
-    }, 2000); // This matches the transition duration in CSS
-  });
+            // Add a small delay before starting the fade-in
+            setTimeout(() => {
+              gameContainer.classList.add('fade-in');
+            }, 100);
+          }
+        }, 2000); // This matches the transition duration in CSS
+      }
+    });
+  }
 
   // Set up market tabs
   const marketTabs = document.querySelectorAll('.market-tab');

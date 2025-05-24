@@ -41,23 +41,32 @@ class SwarsTokenService {
     try {
       console.log(`🎁 Awarding ${amount} SWARS tokens to ${walletAddress}`);
 
-      // Send actual SWARS tokens from treasury
       let txSignature = null;
+      let transferSuccess = false;
+
+      // Try to send actual SWARS tokens from treasury
       if (this.solTransferService) {
         try {
-          console.log(`💎 Sending ${amount} SWARS tokens from treasury to ${walletAddress}`);
-          const transferResult = await this.solTransferService.sendSwarsPrize(walletAddress, amount);
-          txSignature = transferResult.signature;
-          console.log(`✅ SWARS tokens sent successfully: ${txSignature}`);
+          console.log(`💎 Attempting to send ${amount} SWARS tokens from treasury to ${walletAddress}`);
+
+          // Validate wallet address format first
+          if (this.isValidSolanaAddress(walletAddress)) {
+            const transferResult = await this.solTransferService.sendSwarsPrize(walletAddress, amount);
+            txSignature = transferResult.signature;
+            transferSuccess = true;
+            console.log(`✅ SWARS tokens sent successfully: ${txSignature}`);
+          } else {
+            console.warn(`⚠️ Invalid Solana address format: ${walletAddress}, skipping blockchain transfer`);
+          }
         } catch (transferError) {
-          console.error('❌ Failed to send SWARS tokens from treasury:', transferError);
-          throw new Error(`Failed to send SWARS tokens: ${transferError.message}`);
+          console.error('❌ Failed to send SWARS tokens from treasury:', transferError.message);
+          console.warn('⚠️ Continuing with database-only award due to transfer failure');
         }
       } else {
         console.warn('⚠️ SolTransferService not available, creating database entry only');
       }
 
-      // Update user balance in database
+      // Always update database regardless of blockchain transfer success
       await prisma.user.upsert({
         where: { walletAddress },
         update: {
@@ -79,14 +88,34 @@ class SwarsTokenService {
           type: transactionType,
           amount,
           description: reason,
-          txSignature
+          txSignature: txSignature || null
         }
       });
 
-      console.log(`✅ Awarded ${amount} SWARS tokens successfully`);
+      if (transferSuccess) {
+        console.log(`✅ Awarded ${amount} SWARS tokens successfully (blockchain + database)`);
+      } else {
+        console.log(`✅ Awarded ${amount} SWARS tokens successfully (database only)`);
+      }
+
       return true;
     } catch (error) {
       console.error('❌ Error awarding SWARS tokens:', error.message);
+      return false;
+    }
+  }
+
+  // Helper method to validate Solana address format
+  isValidSolanaAddress(address) {
+    try {
+      // Basic validation: should be base58 and around 32-44 characters
+      if (!address || typeof address !== 'string') return false;
+      if (address.length < 32 || address.length > 44) return false;
+
+      // Check if it contains only valid base58 characters
+      const base58Regex = /^[1-9A-HJ-NP-Za-km-z]+$/;
+      return base58Regex.test(address);
+    } catch (error) {
       return false;
     }
   }
@@ -149,86 +178,102 @@ class SwarsTokenService {
   // Daily login bonus with progressive streak system
   async claimDailyBonus(walletAddress) {
     try {
-      console.log(`🎯 Checking daily login bonus for ${walletAddress}`);
+      console.log(`🎯 Starting daily login bonus claim for ${walletAddress}`);
+      console.log(`🕐 Server time: ${new Date().toISOString()}`);
 
-      let user = await prisma.user.findUnique({
-        where: { walletAddress }
-      });
-
-      if (!user) {
-        console.log(`🆕 Creating new user for ${walletAddress}`);
-        // Create new user for daily bonus claim
-        user = await prisma.user.create({
-          data: {
-            walletAddress,
-            username: `Trader ${walletAddress.slice(0, 8)}`,
-            swarsTokenBalance: 0,
-            tournamentsPlayed: 0,
-            tournamentsWon: 0
-          }
+      // Use database transaction to ensure atomicity
+      const result = await prisma.$transaction(async (tx) => {
+        // Find or create user
+        let user = await tx.user.findUnique({
+          where: { walletAddress }
         });
-        console.log(`✅ Created new user with ID: ${user.id}`);
-      }
 
-      // Get or create login streak record
-      let loginStreak = await prisma.loginStreak.findUnique({
-        where: { walletAddress }
-      });
-
-      if (!loginStreak) {
-        loginStreak = await prisma.loginStreak.create({
-          data: {
-            walletAddress,
-            currentStreak: 0,
-            longestStreak: 0,
-            totalLogins: 0
-          }
-        });
-      }
-
-      // Check if user already claimed today
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-
-      console.log(`🔍 Checking for existing bonus claims between ${today.toISOString()} and ${tomorrow.toISOString()}`);
-
-      const todayBonus = await prisma.swarsTransaction.findFirst({
-        where: {
-          walletAddress,
-          type: 'BONUS',
-          timestamp: {
-            gte: today,
-            lt: tomorrow
-          }
+        if (!user) {
+          console.log(`🆕 Creating new user for ${walletAddress}`);
+          user = await tx.user.create({
+            data: {
+              walletAddress,
+              username: `Trader ${walletAddress.slice(0, 8)}`,
+              swarsTokenBalance: 0,
+              tournamentsPlayed: 0,
+              tournamentsWon: 0
+            }
+          });
+          console.log(`✅ Created new user with ID: ${user.id}`);
         }
+
+        // Get or create login streak record
+        let loginStreak = await tx.loginStreak.findUnique({
+          where: { walletAddress }
+        });
+
+        if (!loginStreak) {
+          console.log(`🆕 Creating new login streak record for ${walletAddress}`);
+          loginStreak = await tx.loginStreak.create({
+            data: {
+              walletAddress,
+              currentStreak: 0,
+              longestStreak: 0,
+              totalLogins: 0
+            }
+          });
+        }
+
+        // Use UTC for consistent date handling
+        const now = new Date();
+        const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+        const tomorrowUTC = new Date(todayUTC);
+        tomorrowUTC.setUTCDate(tomorrowUTC.getUTCDate() + 1);
+
+        console.log(`🔍 Checking for existing bonus claims between ${todayUTC.toISOString()} and ${tomorrowUTC.toISOString()}`);
+
+        // Check if user already claimed today (using UTC dates)
+        const todayBonus = await tx.swarsTransaction.findFirst({
+          where: {
+            walletAddress,
+            type: 'BONUS',
+            description: {
+              contains: 'login streak bonus'
+            },
+            timestamp: {
+              gte: todayUTC,
+              lt: tomorrowUTC
+            }
+          }
+        });
+
+        console.log(`🔍 Found existing bonus today:`, todayBonus ? 'YES' : 'NO');
+        if (todayBonus) {
+          console.log(`🔍 Existing bonus details:`, {
+            id: todayBonus.id,
+            amount: todayBonus.amount,
+            timestamp: todayBonus.timestamp,
+            description: todayBonus.description
+          });
+          throw new Error('Daily bonus already claimed today');
+        }
+
+        // Update login streak within transaction
+        const updatedStreak = await this.updateLoginStreakInTransaction(tx, walletAddress, loginStreak, todayUTC);
+
+        // Calculate progressive bonus based on streak
+        const bonusAmount = this.calculateProgressiveBonus(updatedStreak, user);
+        console.log(`💰 Calculated bonus amount: ${bonusAmount} SWARS for day ${updatedStreak.currentStreak}`);
+
+        return { user, updatedStreak, bonusAmount, todayUTC };
       });
 
-      console.log(`🔍 Found existing bonus today:`, todayBonus ? 'YES' : 'NO');
-      if (todayBonus) {
-        console.log(`🔍 Existing bonus details:`, {
-          id: todayBonus.id,
-          amount: todayBonus.amount,
-          timestamp: todayBonus.timestamp,
-          description: todayBonus.description
-        });
+      // Award tokens outside of transaction to handle Solana transfer
+      const { user, updatedStreak, bonusAmount } = result;
+
+      console.log(`🎁 Awarding ${bonusAmount} SWARS tokens for day ${updatedStreak.currentStreak} streak`);
+      const awardSuccess = await this.awardTokens(walletAddress, bonusAmount, `Day ${updatedStreak.currentStreak} login streak bonus`);
+
+      if (!awardSuccess) {
+        throw new Error('Failed to award SWARS tokens');
       }
 
-      if (todayBonus) {
-        throw new Error('Daily bonus already claimed today');
-      }
-
-      // Update login streak
-      const updatedStreak = await this.updateLoginStreak(walletAddress, loginStreak);
-
-      // Calculate progressive bonus based on streak
-      const bonusAmount = this.calculateProgressiveBonus(updatedStreak, user);
-
-      // Award the bonus
-      await this.awardTokens(walletAddress, bonusAmount, `Day ${updatedStreak.currentStreak} login streak bonus`);
-
-      console.log(`✅ Day ${updatedStreak.currentStreak} streak bonus of ${bonusAmount} SWARS claimed`);
+      console.log(`✅ Day ${updatedStreak.currentStreak} streak bonus of ${bonusAmount} SWARS claimed successfully`);
 
       return {
         amount: bonusAmount,
@@ -238,11 +283,80 @@ class SwarsTokenService {
       };
     } catch (error) {
       console.error('❌ Error claiming daily bonus:', error.message);
+      console.error('❌ Full error:', error);
       throw error;
     }
   }
 
-  // Update login streak based on last login
+  // Update login streak within a database transaction
+  async updateLoginStreakInTransaction(tx, walletAddress, currentStreak, todayUTC) {
+    try {
+      const yesterdayUTC = new Date(todayUTC);
+      yesterdayUTC.setUTCDate(yesterdayUTC.getUTCDate() - 1);
+
+      let newStreak = 1; // Starting a new streak
+      let newLongestStreak = currentStreak.longestStreak;
+
+      console.log(`📅 Calculating streak for ${walletAddress}`);
+      console.log(`📅 Today UTC: ${todayUTC.toISOString()}`);
+      console.log(`📅 Yesterday UTC: ${yesterdayUTC.toISOString()}`);
+      console.log(`📅 Last login date: ${currentStreak.lastLoginDate ? currentStreak.lastLoginDate.toISOString() : 'None'}`);
+
+      // Check if user logged in yesterday (continuing streak)
+      if (currentStreak.lastLoginDate) {
+        const lastLoginUTC = new Date(currentStreak.lastLoginDate);
+        // Normalize to UTC date only
+        const lastLoginDateOnly = new Date(Date.UTC(lastLoginUTC.getUTCFullYear(), lastLoginUTC.getUTCMonth(), lastLoginUTC.getUTCDate()));
+
+        console.log(`📅 Last login date normalized: ${lastLoginDateOnly.toISOString()}`);
+
+        if (lastLoginDateOnly.getTime() === yesterdayUTC.getTime()) {
+          // Continuing streak
+          newStreak = currentStreak.currentStreak + 1;
+          console.log(`🔥 Continuing streak! New streak: ${newStreak}`);
+        } else if (lastLoginDateOnly.getTime() === todayUTC.getTime()) {
+          // Already logged in today, keep current streak
+          newStreak = currentStreak.currentStreak;
+          console.log(`⚠️ Already logged in today, keeping streak: ${newStreak}`);
+        } else {
+          // More than 1 day gap, streak resets to 1
+          console.log(`💔 Streak broken! Gap detected. Resetting to 1`);
+          newStreak = 1;
+        }
+      } else {
+        console.log(`🆕 First login ever, starting streak at 1`);
+        newStreak = 1;
+      }
+
+      // Update longest streak if current is higher
+      if (newStreak > newLongestStreak) {
+        newLongestStreak = newStreak;
+        console.log(`🏆 New longest streak record: ${newLongestStreak}`);
+      }
+
+      // Update the streak record within transaction
+      const updatedStreak = await tx.loginStreak.update({
+        where: { walletAddress },
+        data: {
+          currentStreak: newStreak,
+          longestStreak: newLongestStreak,
+          lastLoginDate: todayUTC,
+          lastClaimDate: todayUTC,
+          totalLogins: {
+            increment: 1
+          }
+        }
+      });
+
+      console.log(`📈 Login streak updated: Day ${newStreak} (Longest: ${newLongestStreak}, Total: ${updatedStreak.totalLogins})`);
+      return updatedStreak;
+    } catch (error) {
+      console.error('❌ Error updating login streak in transaction:', error);
+      throw error;
+    }
+  }
+
+  // Update login streak based on last login (legacy method for compatibility)
   async updateLoginStreak(walletAddress, currentStreak) {
     try {
       const today = new Date();
@@ -364,6 +478,7 @@ class SwarsTokenService {
   async getLoginStreakInfo(walletAddress) {
     try {
       console.log(`🔍 Getting login streak info for ${walletAddress}`);
+      console.log(`🕐 Server time: ${new Date().toISOString()}`);
 
       const loginStreak = await prisma.loginStreak.findUnique({
         where: { walletAddress }
@@ -382,21 +497,24 @@ class SwarsTokenService {
         };
       }
 
-      // Check if user can claim today
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
+      // Use UTC for consistent date handling
+      const now = new Date();
+      const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+      const tomorrowUTC = new Date(todayUTC);
+      tomorrowUTC.setUTCDate(tomorrowUTC.getUTCDate() + 1);
 
-      console.log(`🔍 Checking for BONUS transactions between ${today.toISOString()} and ${tomorrow.toISOString()}`);
+      console.log(`🔍 Checking for BONUS transactions between ${todayUTC.toISOString()} and ${tomorrowUTC.toISOString()}`);
 
       const todayBonus = await prisma.swarsTransaction.findFirst({
         where: {
           walletAddress,
           type: 'BONUS',
+          description: {
+            contains: 'login streak bonus'
+          },
           timestamp: {
-            gte: today,
-            lt: tomorrow
+            gte: todayUTC,
+            lt: tomorrowUTC
           }
         }
       });

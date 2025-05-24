@@ -753,7 +753,15 @@ class TournamentManager {
   async loadTournaments() {
     try {
       console.log('🏆 Loading tournaments with continuous availability...');
-      const response = await fetch('/api/tournaments');
+      const response = await fetch('/api/tournaments', {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        cache: 'no-cache'
+      });
       const data = await response.json();
 
       // Handle enhanced tournament API response

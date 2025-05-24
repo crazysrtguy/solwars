@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - SolWars Tournament Platform</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="dashboard-header-main">
+      <div class="dashboard-header-content">
+        <div class="dashboard-logo-section">
+          <div class="logo">
+            <i class="fas fa-rocket"></i>
+            <span>SolWars</span>
+          </div>
+          <div class="tagline">Tournament Trading Platform</div>
+        </div>
+
+        <nav class="dashboard-nav">
+          <a href="index.html" class="nav-link">
+            <i class="fas fa-home"></i>
+            <span>Home</span>
+          </a>
+          <a href="dashboard.html" class="nav-link active">
+            <i class="fas fa-user"></i>
+            <span>Dashboard</span>
+          </a>
+          <button class="nav-link" onclick="showLeaderboard()">
+            <i class="fas fa-trophy"></i>
+            <span>Leaderboard</span>
+          </button>
+          <button class="nav-link how-to-play-btn" onclick="showHowToPlayModal()">
+            <i class="fas fa-info-circle"></i>
+            <span>How to Play</span>
+          </button>
+        </nav>
+
+        <div class="dashboard-header-actions">
+          <div id="connectionStatus" class="connection-status disconnected">
+            <i class="fas fa-wifi"></i> Connecting...
+          </div>
+
+          <div id="swarsBalance" class="swars-balance" style="display: none;">
+            <i class="fas fa-coins"></i>
+            <span id="swarsAmount">0</span> SWARS
+          </div>
+
+          <div id="userInfo" class="user-info" style="display: none;"></div>
+
+          <button id="authButton" class="btn btn-primary">Connect Wallet</button>
+
+          <button id="dailyBonusBtn" class="btn btn-accent" style="display: none;">
+            <i class="fas fa-gift"></i> Daily Bonus
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Dashboard Content -->
+    <main class="dashboard-main">
+      <div class="dashboard-container">
+        <!-- Dashboard Header -->
+        <div class="dashboard-header">
+          <h1>
+            <i class="fas fa-user-circle"></i>
+            My Dashboard
+          </h1>
+          <p>Manage your profile, view your stats, and track your tournament performance</p>
+        </div>
+
+        <!-- Dashboard Grid -->
+        <div class="dashboard-grid">
+          <!-- Profile Section -->
+          <div class="dashboard-card profile-card">
+            <div class="card-header">
+              <h2>
+                <i class="fas fa-user-edit"></i>
+                Profile Settings
+              </h2>
+            </div>
+            <div class="card-content">
+              <div class="profile-form">
+                <!-- Profile Image -->
+                <div class="profile-image-section">
+                  <div class="profile-image-container">
+                    <div class="profile-image" id="profileImage">
+                      <i class="fas fa-user"></i>
+                    </div>
+                    <button class="image-upload-btn" id="imageUploadBtn">
+                      <i class="fas fa-camera"></i>
+                    </button>
+                    <input type="file" id="imageUpload" accept="image/*" style="display: none;">
+                  </div>
+                  <div class="image-actions">
+                    <button class="btn btn-sm btn-outline" id="removeImageBtn" style="display: none;">
+                      <i class="fas fa-trash"></i> Remove
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Profile Form -->
+                <div class="profile-form-fields">
+                  <div class="form-group">
+                    <label for="username">
+                      <i class="fas fa-user"></i>
+                      Username
+                    </label>
+                    <input type="text" id="username" placeholder="Enter your username" maxlength="20">
+                    <small class="form-help">This will be displayed on leaderboards and tournaments</small>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="xUsername">
+                      <i class="fab fa-x-twitter"></i>
+                      X (Twitter) Username
+                    </label>
+                    <div class="input-group">
+                      <span class="input-prefix">@</span>
+                      <input type="text" id="xUsername" placeholder="your_handle" maxlength="15">
+                    </div>
+                    <small class="form-help">Optional: Link your X account to show on your profile</small>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="bio">
+                      <i class="fas fa-quote-left"></i>
+                      Bio
+                    </label>
+                    <textarea id="bio" placeholder="Tell other traders about yourself..." maxlength="150" rows="3"></textarea>
+                    <small class="form-help">
+                      <span id="bioCount">0</span>/150 characters
+                    </small>
+                  </div>
+
+                  <div class="form-actions">
+                    <button class="btn btn-primary" id="saveProfileBtn">
+                      <i class="fas fa-save"></i>
+                      Save Profile
+                    </button>
+                    <button class="btn btn-outline" id="resetProfileBtn">
+                      <i class="fas fa-undo"></i>
+                      Reset
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stats Overview -->
+          <div class="dashboard-card stats-card">
+            <div class="card-header">
+              <h2>
+                <i class="fas fa-chart-line"></i>
+                Tournament Stats
+              </h2>
+            </div>
+            <div class="card-content">
+              <div class="stats-grid">
+                <div class="stat-item">
+                  <div class="stat-icon">
+                    <i class="fas fa-trophy"></i>
+                  </div>
+                  <div class="stat-details">
+                    <div class="stat-value" id="totalWinnings">0.000</div>
+                    <div class="stat-label">Total Winnings (SOL)</div>
+                  </div>
+                </div>
+
+                <div class="stat-item">
+                  <div class="stat-icon">
+                    <i class="fas fa-medal"></i>
+                  </div>
+                  <div class="stat-details">
+                    <div class="stat-value" id="tournamentsWon">0</div>
+                    <div class="stat-label">Tournaments Won</div>
+                  </div>
+                </div>
+
+                <div class="stat-item">
+                  <div class="stat-icon">
+                    <i class="fas fa-gamepad"></i>
+                  </div>
+                  <div class="stat-details">
+                    <div class="stat-value" id="tournamentsPlayed">0</div>
+                    <div class="stat-label">Tournaments Played</div>
+                  </div>
+                </div>
+
+                <div class="stat-item">
+                  <div class="stat-icon">
+                    <i class="fas fa-percentage"></i>
+                  </div>
+                  <div class="stat-details">
+                    <div class="stat-value" id="winRate">0.0%</div>
+                    <div class="stat-label">Win Rate</div>
+                  </div>
+                </div>
+
+                <div class="stat-item">
+                  <div class="stat-icon">
+                    <i class="fas fa-gem"></i>
+                  </div>
+                  <div class="stat-details">
+                    <div class="stat-value" id="swarsBalance">0</div>
+                    <div class="stat-label">SWARS Tokens</div>
+                  </div>
+                </div>
+
+                <div class="stat-item">
+                  <div class="stat-icon">
+                    <i class="fas fa-calendar"></i>
+                  </div>
+                  <div class="stat-details">
+                    <div class="stat-value" id="memberSince">--</div>
+                    <div class="stat-label">Member Since</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Activity -->
+          <div class="dashboard-card activity-card">
+            <div class="card-header">
+              <h2>
+                <i class="fas fa-history"></i>
+                Recent Activity
+              </h2>
+            </div>
+            <div class="card-content">
+              <div class="activity-list" id="activityList">
+                <div class="loading-state">
+                  <i class="fas fa-spinner fa-spin"></i>
+                  <p>Loading recent activity...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="dashboard-card actions-card">
+            <div class="card-header">
+              <h2>
+                <i class="fas fa-bolt"></i>
+                Quick Actions
+              </h2>
+            </div>
+            <div class="card-content">
+              <div class="quick-actions">
+                <button class="action-btn" onclick="window.location.href='index.html'">
+                  <i class="fas fa-play"></i>
+                  <span>Join Tournament</span>
+                </button>
+
+                <button class="action-btn" onclick="showLeaderboard()">
+                  <i class="fas fa-trophy"></i>
+                  <span>View Leaderboard</span>
+                </button>
+
+                <button class="action-btn" id="claimDailyBonusBtn">
+                  <i class="fas fa-gift"></i>
+                  <span>Daily Bonus</span>
+                </button>
+
+                <button class="action-btn" id="viewPrizesBtn">
+                  <i class="fas fa-award"></i>
+                  <span>My Prizes</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Notification -->
+  <div class="notification" id="notification"></div>
+
+  <!-- Include existing modals from main page -->
+  <div class="modal-overlay" id="leaderboardModal">
+    <div class="modal">
+      <button class="close-modal" id="closeLeaderboardModal">&times;</button>
+      <h2>Tournament Champions</h2>
+      <p>The galaxy's most successful tournament traders</p>
+      <div class="leaderboard-container">
+        <div class="leaderboard-header">
+          <div class="leaderboard-rank">Rank</div>
+          <div class="leaderboard-user">Champion</div>
+          <div class="leaderboard-score">Total Winnings</div>
+        </div>
+        <div id="leaderboardList" class="leaderboard-list">
+          <!-- Will be populated dynamically -->
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="refreshLeaderboardBtn">Refresh</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- How to Play Modal -->
+  <div class="modal-overlay" id="howToPlayModal">
+    <div class="modal">
+      <button class="close-modal" onclick="closeHowToPlayModal()">&times;</button>
+      <h2><i class="fas fa-info-circle"></i> How to Play SolWars</h2>
+      <div class="how-to-play-modal">
+        <!-- Content will be same as main page -->
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" onclick="closeHowToPlayModal()">Got It! Let's Trade</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Container -->
+  <div id="notificationContainer" class="notification-container"></div>
+
+  <!-- Solana Web3.js -->
+  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+
+  <!-- Load scripts in proper order -->
+  <script src="script.js"></script>
+  <script src="auth.js"></script>
+  <script src="dashboard.js"></script>
+
+  <!-- Initialize dashboard after all scripts are loaded -->
+  <script>
+    // Ensure dashboard initializes after auth is ready
+    document.addEventListener('DOMContentLoaded', () => {
+      // Initialize dashboard manager
+      if (typeof DashboardManager !== 'undefined') {
+        window.dashboardManager = new DashboardManager();
+      }
+    });
+  </script>
+</body>
+</html>

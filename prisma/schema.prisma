@@ -15,6 +15,9 @@ model User {
   id                String                 @id @default(uuid())
   walletAddress     String                 @unique
   username          String?
+  xUsername         String?                // X (Twitter) username
+  bio               String?                // User bio/description
+  profileImage      String?                // Base64 encoded profile image
   swarsTokenBalance Float                  @default(0) // Native SWARS token balance
   totalWinnings     Float                  @default(0) // Total SOL won
   tournamentsWon    Int                    @default(0)
