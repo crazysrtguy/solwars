@@ -1,5 +1,16 @@
 {
   "version": 2,
+  "functions": {
+    "solwars/api/**/*.js": {
+      "runtime": "@vercel/node"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/solwars/api/$1"
+    }
+  ],
   "build": {
     "env": {
       "PRISMA_GENERATE_DATAPROXY": "true"
