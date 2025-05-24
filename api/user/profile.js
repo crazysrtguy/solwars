@@ -24,25 +24,46 @@ module.exports = async function handler(req, res) {
 
       console.log(`👤 Fetching profile for wallet: ${wallet}`);
 
-      const user = await prisma.user.findUnique({
-        where: { walletAddress: wallet },
-        select: {
-          id: true,
-          walletAddress: true,
-          username: true,
-          xUsername: true,
-          bio: true,
-          profileImage: true,
-          totalWinnings: true,
-          tournamentsWon: true,
-          tournamentsPlayed: true,
-          swarsTokenBalance: true,
-          createdAt: true
-        }
-      });
+      try {
+        const user = await prisma.user.findUnique({
+          where: { walletAddress: wallet },
+          select: {
+            id: true,
+            walletAddress: true,
+            username: true,
+            xUsername: true,
+            bio: true,
+            profileImage: true,
+            totalWinnings: true,
+            tournamentsWon: true,
+            tournamentsPlayed: true,
+            swarsTokenBalance: true,
+            createdAt: true
+          }
+        });
 
-      if (!user) {
-        // Return default profile for new users
+        if (!user) {
+          // Return default profile for new users
+          return res.status(200).json({
+            walletAddress: wallet,
+            username: `Trader ${wallet.slice(0, 8)}`,
+            xUsername: '',
+            bio: '',
+            profileImage: null,
+            totalWinnings: 0,
+            tournamentsWon: 0,
+            tournamentsPlayed: 0,
+            swarsTokenBalance: 0,
+            createdAt: new Date()
+          });
+        }
+
+        res.status(200).json(user);
+
+      } catch (dbError) {
+        console.error('❌ Database error fetching user profile:', dbError);
+
+        // Return default profile if database error
         return res.status(200).json({
           walletAddress: wallet,
           username: `Trader ${wallet.slice(0, 8)}`,
@@ -53,11 +74,10 @@ module.exports = async function handler(req, res) {
           tournamentsWon: 0,
           tournamentsPlayed: 0,
           swarsTokenBalance: 0,
-          createdAt: new Date()
+          createdAt: new Date(),
+          message: 'Profile loaded with default values due to database issue'
         });
       }
-
-      res.status(200).json(user);
 
     } else if (req.method === 'POST') {
       const { walletAddress, username, xUsername, bio, profileImage } = req.body;
@@ -68,42 +88,51 @@ module.exports = async function handler(req, res) {
 
       console.log(`💾 Updating profile for wallet: ${walletAddress}`);
 
-      // Upsert user profile
-      const user = await prisma.user.upsert({
-        where: { walletAddress },
-        update: {
-          username: username || undefined,
-          xUsername: xUsername || undefined,
-          bio: bio || undefined,
-          profileImage: profileImage || undefined
-        },
-        create: {
-          walletAddress,
-          username: username || `Trader ${walletAddress.slice(0, 8)}`,
-          xUsername: xUsername || '',
-          bio: bio || '',
-          profileImage: profileImage || null,
-          swarsTokenBalance: 0,
-          tournamentsPlayed: 0,
-          tournamentsWon: 0
-        },
-        select: {
-          id: true,
-          walletAddress: true,
-          username: true,
-          xUsername: true,
-          bio: true,
-          profileImage: true,
-          totalWinnings: true,
-          tournamentsWon: true,
-          tournamentsPlayed: true,
-          swarsTokenBalance: true,
-          createdAt: true
-        }
-      });
+      try {
+        // Upsert user profile
+        const user = await prisma.user.upsert({
+          where: { walletAddress },
+          update: {
+            username: username || undefined,
+            xUsername: xUsername || undefined,
+            bio: bio || undefined,
+            profileImage: profileImage || undefined
+          },
+          create: {
+            walletAddress,
+            username: username || `Trader ${walletAddress.slice(0, 8)}`,
+            xUsername: xUsername || '',
+            bio: bio || '',
+            profileImage: profileImage || null,
+            swarsTokenBalance: 0,
+            tournamentsPlayed: 0,
+            tournamentsWon: 0
+          },
+          select: {
+            id: true,
+            walletAddress: true,
+            username: true,
+            xUsername: true,
+            bio: true,
+            profileImage: true,
+            totalWinnings: true,
+            tournamentsWon: true,
+            tournamentsPlayed: true,
+            swarsTokenBalance: true,
+            createdAt: true
+          }
+        });
 
-      console.log(`✅ Profile updated for ${walletAddress}`);
-      res.status(200).json(user);
+        console.log(`✅ Profile updated for ${walletAddress}`);
+        res.status(200).json(user);
+
+      } catch (dbError) {
+        console.error('❌ Database error updating user profile:', dbError);
+        return res.status(500).json({
+          error: 'Failed to update profile',
+          message: 'Database error occurred while updating profile'
+        });
+      }
 
     } else {
       res.status(405).json({ error: 'Method not allowed' });

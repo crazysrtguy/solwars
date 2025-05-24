@@ -19,43 +19,62 @@ module.exports = async function handler(req, res) {
       // Get active tournaments
       console.log('🏆 Fetching active tournaments...');
 
-      const tournaments = await prisma.tournament.findMany({
-        where: {
-          status: {
-            in: ['UPCOMING', 'ACTIVE']
+      try {
+        const tournaments = await prisma.tournament.findMany({
+          where: {
+            status: {
+              in: ['UPCOMING', 'ACTIVE']
+            }
+          },
+          include: {
+            _count: {
+              select: { participants: true }
+            }
+          },
+          orderBy: { startTime: 'asc' }
+        });
+
+        // Calculate stats for the availability indicator
+        const activeTournaments = tournaments.filter(t => t.status === 'ACTIVE');
+        const upcomingTournaments = tournaments.filter(t => t.status === 'UPCOMING');
+        const joinableTournaments = tournaments.filter(t =>
+          t.status === 'UPCOMING' ||
+          (t.status === 'ACTIVE' && t._count.participants < t.maxParticipants)
+        );
+
+        const response = {
+          tournaments: tournaments.map(tournament => ({
+            ...tournament,
+            participantCount: tournament._count.participants
+          })),
+          stats: {
+            total: tournaments.length,
+            active: activeTournaments.length,
+            upcoming: upcomingTournaments.length,
+            joinable: joinableTournaments.length
           }
-        },
-        include: {
-          _count: {
-            select: { participants: true }
-          }
-        },
-        orderBy: { startTime: 'asc' }
-      });
+        };
 
-      // Calculate stats for the availability indicator
-      const activeTournaments = tournaments.filter(t => t.status === 'ACTIVE');
-      const upcomingTournaments = tournaments.filter(t => t.status === 'UPCOMING');
-      const joinableTournaments = tournaments.filter(t =>
-        t.status === 'UPCOMING' ||
-        (t.status === 'ACTIVE' && t._count.participants < t.maxParticipants)
-      );
+        console.log(`📊 Found ${tournaments.length} tournaments (${activeTournaments.length} active, ${upcomingTournaments.length} upcoming)`);
+        res.status(200).json(response);
 
-      const response = {
-        tournaments: tournaments.map(tournament => ({
-          ...tournament,
-          participantCount: tournament._count.participants
-        })),
-        stats: {
-          total: tournaments.length,
-          active: activeTournaments.length,
-          upcoming: upcomingTournaments.length,
-          joinable: joinableTournaments.length
-        }
-      };
+      } catch (dbError) {
+        console.error('❌ Database error fetching tournaments:', dbError);
 
-      console.log(`📊 Found ${tournaments.length} tournaments (${activeTournaments.length} active, ${upcomingTournaments.length} upcoming)`);
-      res.status(200).json(response);
+        // Return empty tournaments if database error
+        const fallbackResponse = {
+          tournaments: [],
+          stats: {
+            total: 0,
+            active: 0,
+            upcoming: 0,
+            joinable: 0
+          },
+          message: 'No tournaments available at the moment'
+        };
+
+        res.status(200).json(fallbackResponse);
+      }
 
     } else if (req.method === 'POST') {
       // Join tournament

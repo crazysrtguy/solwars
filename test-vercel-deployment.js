@@ -2,7 +2,7 @@
 const axios = require('axios');
 
 // You need to replace this with your actual Vercel URL
-const VERCEL_URL = process.env.VERCEL_URL || 'https://solwars-bigch.vercel.app';
+const VERCEL_URL = process.env.VERCEL_URL || 'https://solwars-one.vercel.app';
 
 async function testVercelDeployment() {
   console.log('🚀 Testing Vercel Deployment...');
