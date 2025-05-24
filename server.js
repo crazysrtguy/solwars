@@ -225,6 +225,54 @@ app.get('/api/leaderboard', async (req, res) => {
   }
 });
 
+// Get top traders across all tournaments
+app.get('/api/top-traders', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    console.log(`📊 Fetching top ${limit} traders`);
+
+    const topTraders = await prisma.user.findMany({
+      where: {
+        tournamentsPlayed: {
+          gt: 0 // Only include users who have played tournaments
+        }
+      },
+      orderBy: { totalWinnings: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        username: true,
+        walletAddress: true,
+        totalWinnings: true,
+        tournamentsWon: true,
+        tournamentsPlayed: true,
+        swarsTokenBalance: true,
+        createdAt: true
+      }
+    });
+
+    const formattedTraders = topTraders.map((trader, index) => ({
+      rank: index + 1,
+      username: trader.username || `Trader ${trader.walletAddress.slice(-4)}`,
+      walletAddress: trader.walletAddress,
+      totalWinnings: trader.totalWinnings,
+      tournamentsWon: trader.tournamentsWon,
+      tournamentsPlayed: trader.tournamentsPlayed,
+      winRate: trader.tournamentsPlayed > 0 ?
+        (trader.tournamentsWon / trader.tournamentsPlayed * 100) : 0,
+      swarsBalance: trader.swarsTokenBalance,
+      avgWinnings: trader.tournamentsWon > 0 ?
+        (trader.totalWinnings / trader.tournamentsWon) : 0,
+      memberSince: trader.createdAt
+    }));
+
+    res.json(formattedTraders);
+  } catch (error) {
+    console.error('❌ Error fetching top traders:', error);
+    res.status(500).json({ error: 'Server error fetching top traders' });
+  }
+});
+
 // ===== EPIC TOURNAMENT ENDPOINTS =====
 
 // Get user's tournaments (must come before /api/tournaments/:id to avoid conflicts)

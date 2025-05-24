@@ -650,49 +650,86 @@ const updateAuthUI = () => {
   }
 };
 
-// Show leaderboard modal
+// Show leaderboard modal with top traders data
 const showLeaderboard = async () => {
-  const leaderboardData = await getLeaderboard();
+  try {
+    // Fetch top traders data instead of old game leaderboard
+    const response = await fetch('/api/top-traders?limit=15');
+    const topTradersData = await response.json();
 
-  const modal = document.getElementById('leaderboardModal');
-  const leaderboardList = document.getElementById('leaderboardList');
+    const modal = document.getElementById('leaderboardModal');
+    const leaderboardList = document.getElementById('leaderboardList');
 
-  if (!modal || !leaderboardList) {
-    console.warn('Leaderboard elements not found');
-    return;
+    if (!modal || !leaderboardList) {
+      console.warn('Leaderboard elements not found');
+      return;
+    }
+
+    // Update modal title to reflect tournament data
+    const modalTitle = modal.querySelector('h2');
+    if (modalTitle) {
+      modalTitle.textContent = 'Tournament Champions';
+    }
+
+    const modalSubtitle = modal.querySelector('p');
+    if (modalSubtitle) {
+      modalSubtitle.textContent = 'The galaxy\'s most successful tournament traders';
+    }
+
+    // Update header labels
+    const headers = modal.querySelectorAll('.leaderboard-header > div');
+    if (headers.length >= 3) {
+      headers[0].textContent = 'Rank';
+      headers[1].textContent = 'Champion';
+      headers[2].textContent = 'Total Winnings';
+    }
+
+    // Clear existing entries
+    leaderboardList.innerHTML = '';
+
+    // Add top traders entries
+    if (!topTradersData || topTradersData.length === 0) {
+      leaderboardList.innerHTML = '<div class="empty-state">No tournament champions yet. Be the first!</div>';
+    } else {
+      topTradersData.forEach((trader, index) => {
+        const listItem = document.createElement('div');
+        listItem.className = 'leaderboard-item';
+
+        // Highlight current user
+        if (authState.walletAddress && trader.walletAddress === authState.walletAddress) {
+          listItem.classList.add('current-user');
+        }
+
+        // Add special styling for top 3
+        if (index < 3) {
+          listItem.classList.add(`rank-${index + 1}`);
+        }
+
+        const rankIcon = index === 0 ? '👑' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
+
+        listItem.innerHTML = `
+          <div class="leaderboard-rank">${rankIcon}</div>
+          <div class="leaderboard-user">
+            <div class="leaderboard-username">${trader.username}</div>
+            <div class="leaderboard-wallet">${shortenAddress(trader.walletAddress)}</div>
+            <div class="trader-stats-small">
+              <span class="win-rate">${trader.winRate.toFixed(1)}% WR</span>
+              <span class="tournaments">${trader.tournamentsWon}/${trader.tournamentsPlayed}</span>
+            </div>
+          </div>
+          <div class="leaderboard-score">${trader.totalWinnings.toFixed(3)} SOL</div>
+        `;
+
+        leaderboardList.appendChild(listItem);
+      });
+    }
+
+    // Show the modal
+    modal.classList.add('active');
+  } catch (error) {
+    console.error('Error loading tournament champions:', error);
+    showNotification('Failed to load tournament champions', 'error');
   }
-
-  // Clear existing entries
-  leaderboardList.innerHTML = '';
-
-  // Add leaderboard entries
-  if (leaderboardData.length === 0) {
-    leaderboardList.innerHTML = '<div class="empty-state">No leaderboard entries yet. Be the first!</div>';
-  } else {
-    leaderboardData.forEach((entry, index) => {
-      const listItem = document.createElement('div');
-      listItem.className = 'leaderboard-item';
-
-      // Highlight current user
-      if (authState.walletAddress && entry.walletAddress === authState.walletAddress) {
-        listItem.classList.add('current-user');
-      }
-
-      listItem.innerHTML = `
-        <div class="leaderboard-rank">${index + 1}</div>
-        <div class="leaderboard-user">
-          <div class="leaderboard-username">${entry.username}</div>
-          <div class="leaderboard-wallet">${shortenAddress(entry.walletAddress)}</div>
-        </div>
-        <div class="leaderboard-score">${entry.highScore.toLocaleString('en-US', {maximumFractionDigits: 2})} CR</div>
-      `;
-
-      leaderboardList.appendChild(listItem);
-    });
-  }
-
-  // Show the modal
-  modal.classList.add('active');
 };
 
 // Helper function to shorten wallet address

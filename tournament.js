@@ -27,6 +27,7 @@ class TournamentManager {
     this.setupEventListeners();
     this.setupFilterListeners();
     this.loadTrendingTokens();
+    this.initializeLiveMarket(); // This will load top traders
     this.startTimerUpdates();
 
     // Load user prizes when authenticated
@@ -104,19 +105,8 @@ class TournamentManager {
       console.error('❌ liveMarketList element not found');
     }
 
-    // Initialize top traders list
-    const topTradersList = document.getElementById('topTradersList');
-    if (topTradersList) {
-      console.log('✅ Found topTradersList element');
-      topTradersList.innerHTML = `
-        <div class="loading-state">
-          <i class="fas fa-crown"></i>
-          <p>Loading top traders...</p>
-        </div>
-      `;
-    } else {
-      console.error('❌ topTradersList element not found');
-    }
+    // Initialize and load top traders list
+    this.loadTopTraders();
 
     // Update market display when prices are available
     if (Object.keys(this.realTimePrices).length > 0) {
@@ -3409,6 +3399,184 @@ class TournamentManager {
       console.error('❌ Error processing SOL prize transfer:', error);
       throw error;
     }
+  }
+
+  // Load top traders for leaderboard display
+  async loadTopTraders() {
+    try {
+      console.log('👑 Loading top traders...');
+      const topTradersList = document.getElementById('topTradersList');
+      const mainTopTradersContainer = document.getElementById('mainTopTradersContainer');
+
+      // Show loading state for both sections
+      if (topTradersList) {
+        topTradersList.innerHTML = `
+          <div class="loading-state">
+            <i class="fas fa-crown"></i>
+            <p>Loading top traders...</p>
+          </div>
+        `;
+      }
+
+      if (mainTopTradersContainer) {
+        mainTopTradersContainer.innerHTML = `
+          <div class="loading-state">
+            <i class="fas fa-crown"></i>
+            <p>Loading tournament champions...</p>
+          </div>
+        `;
+      }
+
+      const response = await fetch('/api/top-traders?limit=10');
+      const topTraders = await response.json();
+
+      if (topTraders && topTraders.length > 0) {
+        console.log(`✅ Loaded ${topTraders.length} top traders`);
+        this.displayTopTraders(topTraders);
+        this.displayMainTopTraders(topTraders);
+      } else {
+        console.warn('⚠️ No top traders data available');
+        this.showTopTradersEmpty();
+        this.showMainTopTradersEmpty();
+      }
+    } catch (error) {
+      console.error('❌ Error loading top traders:', error);
+      this.showTopTradersError();
+      this.showMainTopTradersError();
+    }
+  }
+
+  // Display top traders in the UI
+  displayTopTraders(traders) {
+    const topTradersList = document.getElementById('topTradersList');
+    if (!topTradersList) return;
+
+    const tradersHTML = traders.map((trader, index) => {
+      const rankClass = index < 3 ? `rank-${index + 1}` : '';
+      const rankIcon = index === 0 ? '👑' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${trader.rank}`;
+
+      return `
+        <div class="top-trader-item ${rankClass}">
+          <div class="trader-rank">
+            <span class="rank-icon">${rankIcon}</span>
+          </div>
+          <div class="trader-info">
+            <div class="trader-name">${trader.username}</div>
+            <div class="trader-stats">
+              <span class="winnings">${trader.totalWinnings.toFixed(3)} SOL</span>
+              <span class="win-rate">${trader.winRate.toFixed(1)}% WR</span>
+            </div>
+          </div>
+          <div class="trader-details">
+            <div class="tournaments-count">${trader.tournamentsWon}/${trader.tournamentsPlayed}</div>
+            <div class="wallet-address">${trader.walletAddress.slice(0, 4)}...${trader.walletAddress.slice(-4)}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    topTradersList.innerHTML = tradersHTML;
+  }
+
+  // Show empty state for top traders
+  showTopTradersEmpty() {
+    const topTradersList = document.getElementById('topTradersList');
+    if (!topTradersList) return;
+
+    topTradersList.innerHTML = `
+      <div class="empty-state">
+        <i class="fas fa-crown"></i>
+        <p>No tournament champions yet</p>
+        <small>Be the first to win a tournament!</small>
+      </div>
+    `;
+  }
+
+  // Show error state for top traders
+  showTopTradersError() {
+    const topTradersList = document.getElementById('topTradersList');
+    if (!topTradersList) return;
+
+    topTradersList.innerHTML = `
+      <div class="error-state">
+        <i class="fas fa-exclamation-triangle"></i>
+        <p>Failed to load top traders</p>
+        <button class="btn btn-sm" onclick="window.tournamentManager.loadTopTraders()">
+          <i class="fas fa-sync-alt"></i> Retry
+        </button>
+      </div>
+    `;
+  }
+
+  // Display top traders in the main content area
+  displayMainTopTraders(traders) {
+    const mainTopTradersContainer = document.getElementById('mainTopTradersContainer');
+    if (!mainTopTradersContainer) return;
+
+    // Show top 6 traders in a horizontal grid layout
+    const topSixTraders = traders.slice(0, 6);
+
+    const tradersHTML = topSixTraders.map((trader, index) => {
+      const rankClass = index < 3 ? `rank-${index + 1}` : '';
+      const rankIcon = index === 0 ? '👑' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
+
+      return `
+        <div class="main-trader-card ${rankClass}">
+          <div class="trader-rank-badge">
+            <span class="rank-icon">${rankIcon}</span>
+          </div>
+          <div class="trader-avatar">
+            <div class="avatar-placeholder">
+              ${trader.username.charAt(0).toUpperCase()}
+            </div>
+          </div>
+          <div class="trader-details">
+            <div class="trader-name">${trader.username}</div>
+            <div class="trader-winnings">${trader.totalWinnings.toFixed(3)} SOL</div>
+            <div class="trader-stats">
+              <span class="win-rate">${trader.winRate.toFixed(1)}% WR</span>
+              <span class="tournaments">${trader.tournamentsWon}W</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    mainTopTradersContainer.innerHTML = `
+      <div class="main-traders-grid">
+        ${tradersHTML}
+      </div>
+    `;
+  }
+
+  // Show empty state for main top traders
+  showMainTopTradersEmpty() {
+    const mainTopTradersContainer = document.getElementById('mainTopTradersContainer');
+    if (!mainTopTradersContainer) return;
+
+    mainTopTradersContainer.innerHTML = `
+      <div class="empty-state">
+        <i class="fas fa-crown"></i>
+        <p>No tournament champions yet</p>
+        <small>Be the first to win a tournament and claim your place in the hall of fame!</small>
+      </div>
+    `;
+  }
+
+  // Show error state for main top traders
+  showMainTopTradersError() {
+    const mainTopTradersContainer = document.getElementById('mainTopTradersContainer');
+    if (!mainTopTradersContainer) return;
+
+    mainTopTradersContainer.innerHTML = `
+      <div class="error-state">
+        <i class="fas fa-exclamation-triangle"></i>
+        <p>Failed to load tournament champions</p>
+        <button class="btn btn-sm" onclick="window.tournamentManager.loadTopTraders()">
+          <i class="fas fa-sync-alt"></i> Retry
+        </button>
+      </div>
+    `;
   }
 }
 

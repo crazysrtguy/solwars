@@ -5682,3 +5682,411 @@ header {
     text-align: left;
   }
 }
+
+/* Top Traders Styles */
+.top-traders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.top-trader-item {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  background: rgba(var(--primary-rgb), 0.05);
+  border: 1px solid rgba(var(--primary-rgb), 0.1);
+  border-radius: 10px;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.top-trader-item:hover {
+  background: rgba(var(--primary-rgb), 0.1);
+  border-color: rgba(var(--primary-rgb), 0.2);
+  transform: translateY(-2px);
+}
+
+.top-trader-item.rank-1 {
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(255, 215, 0, 0.05));
+  border-color: rgba(255, 215, 0, 0.3);
+}
+
+.top-trader-item.rank-2 {
+  background: linear-gradient(135deg, rgba(192, 192, 192, 0.1), rgba(192, 192, 192, 0.05));
+  border-color: rgba(192, 192, 192, 0.3);
+}
+
+.top-trader-item.rank-3 {
+  background: linear-gradient(135deg, rgba(205, 127, 50, 0.1), rgba(205, 127, 50, 0.05));
+  border-color: rgba(205, 127, 50, 0.3);
+}
+
+.trader-rank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.rank-icon {
+  font-size: 1.5em;
+  font-weight: bold;
+}
+
+.rank-1 .rank-icon {
+  font-size: 1.8em;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+.trader-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.trader-name {
+  font-weight: 600;
+  font-size: 0.95em;
+  color: var(--light);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trader-stats {
+  display: flex;
+  gap: 8px;
+  font-size: 0.8em;
+}
+
+.winnings {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.win-rate {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.trader-details {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  font-size: 0.75em;
+  color: var(--light);
+  opacity: 0.8;
+}
+
+.tournaments-count {
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.wallet-address {
+  font-family: 'Courier New', monospace;
+  opacity: 0.6;
+}
+
+/* Loading and error states for top traders */
+.top-traders-list .loading-state,
+.top-traders-list .empty-state,
+.top-traders-list .error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 20px;
+  text-align: center;
+  color: var(--light);
+  opacity: 0.7;
+}
+
+.top-traders-list .loading-state i,
+.top-traders-list .empty-state i,
+.top-traders-list .error-state i {
+  font-size: 2em;
+  margin-bottom: 10px;
+  color: var(--primary);
+}
+
+.top-traders-list .empty-state small {
+  font-size: 0.8em;
+  opacity: 0.6;
+  margin-top: 5px;
+}
+
+.top-traders-list .error-state .btn {
+  margin-top: 10px;
+  padding: 6px 12px;
+  font-size: 0.8em;
+}
+
+/* Responsive adjustments for top traders */
+@media (max-width: 768px) {
+  .top-trader-item {
+    padding: 10px;
+  }
+
+  .trader-rank {
+    width: 35px;
+    height: 35px;
+    margin-right: 10px;
+  }
+
+  .rank-icon {
+    font-size: 1.3em;
+  }
+
+  .rank-1 .rank-icon {
+    font-size: 1.5em;
+  }
+
+  .trader-name {
+    font-size: 0.9em;
+  }
+
+  .trader-stats {
+    font-size: 0.75em;
+  }
+
+  .trader-details {
+    font-size: 0.7em;
+  }
+}
+
+/* Enhanced Leaderboard Modal Styles */
+.leaderboard-item.rank-1 {
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(255, 215, 0, 0.05));
+  border-left: 3px solid rgba(255, 215, 0, 0.5);
+}
+
+.leaderboard-item.rank-2 {
+  background: linear-gradient(135deg, rgba(192, 192, 192, 0.1), rgba(192, 192, 192, 0.05));
+  border-left: 3px solid rgba(192, 192, 192, 0.5);
+}
+
+.leaderboard-item.rank-3 {
+  background: linear-gradient(135deg, rgba(205, 127, 50, 0.1), rgba(205, 127, 50, 0.05));
+  border-left: 3px solid rgba(205, 127, 50, 0.5);
+}
+
+.leaderboard-rank {
+  font-size: 1.1em;
+  font-weight: bold;
+}
+
+.leaderboard-item.rank-1 .leaderboard-rank {
+  font-size: 1.3em;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+.trader-stats-small {
+  display: flex;
+  gap: 8px;
+  font-size: 0.75em;
+  margin-top: 2px;
+  opacity: 0.8;
+}
+
+.trader-stats-small .win-rate {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.trader-stats-small .tournaments {
+  color: var(--primary);
+  font-weight: 500;
+}
+
+/* Main Top Traders Section Styles */
+.main-top-traders-container {
+  margin-top: 20px;
+}
+
+.main-traders-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  padding: 10px 0;
+}
+
+.main-trader-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  background: rgba(var(--primary-rgb), 0.05);
+  border: 2px solid rgba(var(--primary-rgb), 0.1);
+  border-radius: 15px;
+  transition: all 0.3s ease;
+  position: relative;
+  text-align: center;
+}
+
+.main-trader-card:hover {
+  background: rgba(var(--primary-rgb), 0.1);
+  border-color: rgba(var(--primary-rgb), 0.2);
+  transform: translateY(-5px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.main-trader-card.rank-1 {
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.15), rgba(255, 215, 0, 0.05));
+  border-color: rgba(255, 215, 0, 0.4);
+}
+
+.main-trader-card.rank-2 {
+  background: linear-gradient(135deg, rgba(192, 192, 192, 0.15), rgba(192, 192, 192, 0.05));
+  border-color: rgba(192, 192, 192, 0.4);
+}
+
+.main-trader-card.rank-3 {
+  background: linear-gradient(135deg, rgba(205, 127, 50, 0.15), rgba(205, 127, 50, 0.05));
+  border-color: rgba(205, 127, 50, 0.4);
+}
+
+.trader-rank-badge {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 40px;
+  height: 40px;
+  background: var(--card-bg);
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2em;
+  font-weight: bold;
+}
+
+.main-trader-card.rank-1 .trader-rank-badge {
+  background: linear-gradient(135deg, #ffd700, #ffed4e);
+  border-color: #ffd700;
+  color: #000;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+}
+
+.main-trader-card.rank-2 .trader-rank-badge {
+  background: linear-gradient(135deg, #c0c0c0, #e5e5e5);
+  border-color: #c0c0c0;
+  color: #000;
+}
+
+.main-trader-card.rank-3 .trader-rank-badge {
+  background: linear-gradient(135deg, #cd7f32, #daa520);
+  border-color: #cd7f32;
+  color: #fff;
+}
+
+.trader-avatar {
+  margin: 10px 0 15px 0;
+}
+
+.avatar-placeholder {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5em;
+  font-weight: bold;
+  color: var(--dark);
+  margin: 0 auto;
+}
+
+.trader-details {
+  width: 100%;
+}
+
+.trader-details .trader-name {
+  font-size: 1.1em;
+  font-weight: 600;
+  color: var(--light);
+  margin-bottom: 8px;
+}
+
+.trader-details .trader-winnings {
+  font-size: 1.3em;
+  font-weight: bold;
+  color: var(--primary);
+  margin-bottom: 10px;
+}
+
+.trader-details .trader-stats {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  font-size: 0.85em;
+}
+
+.trader-details .win-rate {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.trader-details .tournaments {
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.section-subtitle {
+  font-size: 0.7em;
+  color: var(--accent);
+  font-weight: normal;
+  margin-left: 10px;
+  opacity: 0.8;
+}
+
+/* Responsive adjustments for main top traders */
+@media (max-width: 1200px) {
+  .main-traders-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .main-traders-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+  }
+
+  .main-trader-card {
+    padding: 15px;
+  }
+
+  .trader-rank-badge {
+    width: 35px;
+    height: 35px;
+    font-size: 1em;
+  }
+
+  .avatar-placeholder {
+    width: 50px;
+    height: 50px;
+    font-size: 1.3em;
+  }
+
+  .trader-details .trader-name {
+    font-size: 1em;
+  }
+
+  .trader-details .trader-winnings {
+    font-size: 1.1em;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-traders-grid {
+    grid-template-columns: 1fr;
+  }
+}
