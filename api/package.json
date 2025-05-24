@@ -1,0 +1,15 @@
+{
+  "name": "solwars-api",
+  "version": "1.0.0",
+  "description": "SolWars API endpoints for Vercel deployment",
+  "main": "index.js",
+  "dependencies": {
+    "@prisma/client": "^5.7.1",
+    "@solana/web3.js": "^1.87.6",
+    "axios": "^1.6.2",
+    "tweetnacl": "^1.0.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

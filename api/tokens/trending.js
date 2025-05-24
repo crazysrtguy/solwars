@@ -1,5 +1,5 @@
 // Trending tokens API for Vercel deployment
-import axios from 'axios';
+const axios = require('axios');
 
 // Enhanced token list with more variety
 const ENHANCED_TOKENS = [
@@ -8,33 +8,33 @@ const ENHANCED_TOKENS = [
   { address: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', name: 'Jupiter', symbol: 'JUP' },
   { address: '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R', name: 'Raydium', symbol: 'RAY' },
   { address: '7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs', name: 'Orca', symbol: 'ORCA' },
-  
+
   // Stablecoins
   { address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', name: 'USD Coin', symbol: 'USDC' },
   { address: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', name: 'Tether USD', symbol: 'USDT' },
-  
+
   // Liquid Staking
   { address: 'mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So', name: 'Marinade Staked SOL', symbol: 'mSOL' },
   { address: 'J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn', name: 'Jito Staked SOL', symbol: 'JitoSOL' },
-  
+
   // Popular Meme Coins
   { address: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', name: 'Bonk', symbol: 'BONK' },
   { address: 'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm', name: 'dogwifhat', symbol: 'WIF' },
   { address: '7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr', name: 'Popcat', symbol: 'POPCAT' },
   { address: 'A8C3xuqscfmyLrte3VmTqrAq8kgMASius9AFNANwpump', name: 'Peanut the Squirrel', symbol: 'PNUT' },
-  
+
   // Infrastructure
   { address: 'HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC', name: 'Helium', symbol: 'HNT' },
   { address: 'SHDWyBxihqiCj6YekG2GUr7wqKLeLAMK1gHZck9pL6y', name: 'Shadow Token', symbol: 'SHDW' },
-  
+
   // Gaming & NFT
   { address: 'ATLASXmbPQxBUYbxPsV97usA3fPQYEqzQBUHgiFCUsXx', name: 'Star Atlas', symbol: 'ATLAS' },
   { address: 'poLisWXnNRwC6oBu1vHiuKQzFjGL4XDSu4g9qjz9qVk', name: 'Star Atlas DAO', symbol: 'POLIS' },
-  
+
   // DeFi
   { address: 'SRMuApVNdxXokk5GT7XD5cUUgXMBCoAz2LHeuAoKWRt', name: 'Serum', symbol: 'SRM' },
   { address: 'MangoCzJ36AjZyKwVj3VnYU4GTonjfVEnJmvvWaxLac', name: 'Mango', symbol: 'MNGO' },
-  
+
   // Newer Trending
   { address: 'JTO4BdwjNO6MLrpE7rhHXt6qzxgBZNEJQCBrVX5VNy3', name: 'Jito', symbol: 'JTO' },
   { address: 'TNSRxcUxoT9xBG3de7PiJyTDYu7kskLqcpddxnEJAS6', name: 'Tensor', symbol: 'TNSR' }
@@ -44,14 +44,14 @@ const ENHANCED_TOKENS = [
 async function getTrendingTokens(limit = 25) {
   try {
     console.log('🔥 Fetching trending tokens with DexScreener data...');
-    
+
     // Get a subset of tokens to fetch data for
     const tokensToFetch = ENHANCED_TOKENS.slice(0, Math.min(limit * 2, ENHANCED_TOKENS.length));
     const tokenAddresses = tokensToFetch.map(t => t.address);
-    
+
     // Fetch comprehensive data from DexScreener
     const enrichedTokens = await getComprehensiveTokenData(tokenAddresses);
-    
+
     // Calculate trending scores and sort
     const scoredTokens = enrichedTokens
       .filter(token => token && token.price > 0)
@@ -88,7 +88,7 @@ async function getTrendingTokens(limit = 25) {
 
     console.log(`✅ Returning ${scoredTokens.length} trending tokens`);
     return scoredTokens;
-    
+
   } catch (error) {
     console.error('❌ Error fetching trending tokens:', error);
     // Return fallback data
@@ -100,19 +100,19 @@ async function getTrendingTokens(limit = 25) {
 async function getComprehensiveTokenData(tokenAddresses) {
   try {
     const results = [];
-    
+
     // Process in chunks of 30 (DexScreener limit)
     for (let i = 0; i < tokenAddresses.length; i += 30) {
       const chunk = tokenAddresses.slice(i, i + 30);
       const chunkData = await fetchTokenChunk(chunk);
       results.push(...chunkData);
-      
+
       // Small delay to avoid rate limiting
       if (i + 30 < tokenAddresses.length) {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
-    
+
     return results;
   } catch (error) {
     console.error('❌ Error getting comprehensive token data:', error);
@@ -134,18 +134,18 @@ async function fetchTokenChunk(addresses) {
     }
 
     const tokenMap = new Map();
-    
+
     // Process pairs and find best data for each token
     for (const pair of response.data.pairs) {
       if (!pair.baseToken?.address || pair.chainId !== 'solana') continue;
-      
+
       const address = pair.baseToken.address;
       const existing = tokenMap.get(address);
-      
+
       // Use pair with highest liquidity
       if (!existing || (pair.liquidity?.usd || 0) > (existing.liquidity || 0)) {
         const tokenInfo = ENHANCED_TOKENS.find(t => t.address === address) || {};
-        
+
         tokenMap.set(address, {
           address,
           name: tokenInfo.name || pair.baseToken.name || 'Unknown',
@@ -173,7 +173,7 @@ async function fetchTokenChunk(addresses) {
         });
       }
     }
-    
+
     return Array.from(tokenMap.values());
   } catch (error) {
     console.error('❌ Error fetching token chunk:', error);
@@ -198,7 +198,17 @@ function getFallbackTokens(limit = 25) {
   }));
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
+  // Enable CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -206,13 +216,13 @@ export default async function handler(req, res) {
   try {
     const limit = parseInt(req.query.limit) || 25;
     const trendingTokens = await getTrendingTokens(limit);
-    
+
     res.status(200).json(trendingTokens);
   } catch (error) {
     console.error('❌ Trending tokens API error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to fetch trending tokens',
-      message: error.message 
+      message: error.message
     });
   }
 }
