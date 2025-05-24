@@ -1,3 +1,8 @@
+// Tournament API using real database tournaments
+const { PrismaClient } = require('@prisma/client');
+
+const prisma = new PrismaClient();
+
 module.exports = async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -11,84 +16,82 @@ module.exports = async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      // Return test tournaments without database for now
-      const now = new Date();
-      const testTournaments = [
-        {
-          id: 'test-1',
-          name: 'Lightning Round - Live Now!',
-          description: 'Fast-paced 30-minute trading battle with trending tokens',
-          type: 'FLASH',
-          entryFeeSol: 0.05,
-          entryFeeSwars: 500,
-          bonusJackpot: 100,
-          maxParticipants: 50,
-          participantCount: 12,
-          prizePoolSol: 0.6,
-          totalJackpot: 180,
-          status: 'active',
-          startTime: new Date(now.getTime() - 5 * 60 * 1000).toISOString(),
-          endTime: new Date(now.getTime() + 25 * 60 * 1000).toISOString(),
-          createdAt: new Date(now.getTime() - 60 * 60 * 1000).toISOString(),
-          updatedAt: now.toISOString(),
-          selectedTokens: [
-            {
-              address: 'So11111111111111111111111111111111111111112',
-              name: 'Wrapped SOL',
-              symbol: 'SOL',
-              price: 180.50,
-              icon: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png'
-            },
-            {
-              address: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN',
-              name: 'Jupiter',
-              symbol: 'JUP',
-              price: 0.85,
-              icon: 'https://static.jup.ag/jup/icon.png'
-            }
-          ],
-          participants: [],
-          jackpotPool: null
-        },
-        {
-          id: 'test-2',
-          name: 'Crypto Gladiator Arena',
-          description: 'Epic 1-hour trading tournament',
-          type: 'FLASH',
-          entryFeeSol: 0.1,
-          entryFeeSwars: 1000,
-          bonusJackpot: 200,
-          maxParticipants: 100,
-          participantCount: 0,
-          prizePoolSol: 0,
-          totalJackpot: 200,
-          status: 'upcoming',
-          startTime: new Date(now.getTime() + 5 * 60 * 1000).toISOString(),
-          endTime: new Date(now.getTime() + 65 * 60 * 1000).toISOString(),
-          createdAt: new Date(now.getTime() - 30 * 60 * 1000).toISOString(),
-          updatedAt: now.toISOString(),
-          selectedTokens: [
-            {
-              address: 'So11111111111111111111111111111111111111112',
-              name: 'Wrapped SOL',
-              symbol: 'SOL',
-              price: 180.50,
-              icon: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png'
-            }
-          ],
-          participants: [],
-          jackpotPool: null
-        }
-      ];
+      console.log('🏆 Fetching real tournaments from database...');
 
-      res.status(200).json(testTournaments);
+      // Get real tournaments from database
+      const tournaments = await prisma.tournament.findMany({
+        where: {
+          status: {
+            in: ['UPCOMING', 'ACTIVE']
+          }
+        },
+        include: {
+          participants: true,
+          _count: {
+            select: {
+              participants: true
+            }
+          }
+        },
+        orderBy: {
+          startTime: 'asc'
+        }
+      });
+
+      // Format tournaments for frontend
+      const formattedTournaments = tournaments.map(tournament => {
+        const now = new Date();
+        const participantCount = tournament._count.participants;
+
+        return {
+          ...tournament,
+          participantCount,
+          spotsLeft: tournament.maxParticipants - participantCount,
+          timeUntilStart: Math.max(0, tournament.startTime.getTime() - now.getTime()),
+          timeUntilEnd: Math.max(0, tournament.endTime.getTime() - now.getTime()),
+          isJoinable: tournament.status === 'UPCOMING' ||
+                     (tournament.status === 'ACTIVE' && participantCount < tournament.maxParticipants),
+          canJoin: participantCount < tournament.maxParticipants,
+          prizePoolSol: participantCount * tournament.entryFeeSol,
+          totalJackpot: tournament.bonusJackpot + (participantCount * tournament.entryFeeSwars * 0.1),
+          // Ensure selectedTokens is properly formatted
+          selectedTokens: Array.isArray(tournament.selectedTokens) ? tournament.selectedTokens : [],
+          participants: [] // Don't expose participant details in list view
+        };
+      });
+
+      // Categorize tournaments
+      const activeTournaments = formattedTournaments.filter(t => t.status === 'ACTIVE');
+      const upcomingTournaments = formattedTournaments.filter(t => t.status === 'UPCOMING');
+      const joinableTournaments = formattedTournaments.filter(t => t.isJoinable);
+
+      console.log(`📊 Found ${formattedTournaments.length} tournaments (${activeTournaments.length} active, ${upcomingTournaments.length} upcoming, ${joinableTournaments.length} joinable)`);
+
+      // Return tournament data in enhanced format
+      const response = {
+        tournaments: formattedTournaments,
+        categories: {
+          active: activeTournaments,
+          upcoming: upcomingTournaments,
+          joinable: joinableTournaments
+        },
+        stats: {
+          total: formattedTournaments.length,
+          active: activeTournaments.length,
+          upcoming: upcomingTournaments.length,
+          joinable: joinableTournaments.length
+        },
+        message: `Real tournaments from database (${formattedTournaments.length} found)`
+      };
+
+      console.log(`📈 API Response Stats:`, response.stats);
+      res.status(200).json(response);
 
     } else if (req.method === 'POST') {
-      // Return test tournament creation
       res.status(201).json({
         success: true,
-        message: 'Tournament creation not yet implemented',
-        tournament: { id: 'test-new', name: 'Test Tournament' }
+        message: 'Tournament creation handled by main server',
+        tournament: { id: 'redirect', name: 'Use main server endpoints' }
       });
 
     } else {
@@ -96,11 +99,14 @@ module.exports = async function handler(req, res) {
     }
 
   } catch (error) {
-    console.error('❌ API Error:', error);
+    console.error('❌ Tournament API Error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',
-      message: error.message
+      message: error.message,
+      tournaments: [], // Return empty array as fallback
+      categories: { active: [], upcoming: [], joinable: [] },
+      stats: { total: 0, active: 0, upcoming: 0, joinable: 0 }
     });
   }
 }

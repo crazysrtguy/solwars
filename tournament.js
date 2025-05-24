@@ -754,24 +754,54 @@ class TournamentManager {
     }
   }
 
-  // Load active tournaments
+  // Load active tournaments with enhanced scheduling
   async loadTournaments() {
     try {
-      console.log('🏆 Loading active tournaments...');
+      console.log('🏆 Loading tournaments with continuous availability...');
       const response = await fetch('/api/tournaments');
       const data = await response.json();
 
-      // Handle both array format and object format
+      // Handle enhanced tournament API response
       let tournaments;
+      let categories = {};
+      let stats = {};
+
+      console.log('🔍 Raw API response:', data);
+
       if (Array.isArray(data)) {
+        // Legacy format - just tournaments array
         tournaments = data;
-      } else if (data.success && data.tournaments) {
+        console.log('📊 Using legacy format with', tournaments.length, 'tournaments');
+      } else if (data.tournaments) {
+        // Enhanced format with categories and stats
         tournaments = data.tournaments;
+        categories = data.categories || {};
+        stats = data.stats || {};
+
+        console.log('📊 Tournament stats:', stats);
+        console.log('📂 Tournament categories:', {
+          active: categories.active?.length || 0,
+          upcoming: categories.upcoming?.length || 0,
+          joinable: categories.joinable?.length || 0
+        });
+        console.log('🎯 Using enhanced format with', tournaments.length, 'tournaments');
       } else {
+        console.error('❌ Invalid response format:', data);
         throw new Error('Invalid response format');
       }
 
+      // Validate tournaments array
+      if (!Array.isArray(tournaments)) {
+        console.error('❌ Tournaments is not an array:', tournaments);
+        throw new Error('Tournaments data is not an array');
+      }
+
       this.activeTournaments = tournaments;
+      this.tournamentCategories = categories;
+      this.tournamentStats = stats;
+
+      // Update tournament availability indicator
+      this.updateTournamentAvailabilityIndicator(stats);
 
       // If showing my tournaments, also load user tournaments
       if (this.currentFilter === 'my-tournaments' && authState.isAuthenticated) {
@@ -782,7 +812,14 @@ class TournamentManager {
         this.displayTournaments();
       }
 
-      console.log(`✅ Loaded ${tournaments.length} active tournaments`);
+      console.log(`✅ Loaded ${tournaments.length} tournaments (${stats.active || 0} active, ${stats.upcoming || 0} upcoming)`);
+
+      // Show availability notification if needed
+      if (stats.joinable === 0) {
+        console.log('⚠️ No joinable tournaments available, triggering emergency creation...');
+        this.triggerEmergencyTournamentCreation();
+      }
+
     } catch (error) {
       console.error('❌ Error loading tournaments:', error);
       showNotification('Failed to load tournaments', 'error');
@@ -862,6 +899,9 @@ class TournamentManager {
       this.activeTournaments = [];
     }
 
+    console.log(`🔍 Filtering ${this.activeTournaments.length} tournaments with filter: ${this.currentFilter}`);
+    console.log('🎯 Available tournaments:', this.activeTournaments.map(t => `${t.name} (${t.type}, ${t.status})`));
+
     if (this.currentFilter === 'all') {
       this.filteredTournaments = [...this.activeTournaments];
     } else if (this.currentFilter === 'my-tournaments') {
@@ -876,6 +916,9 @@ class TournamentManager {
         tournament.type.toLowerCase() === this.currentFilter.toLowerCase()
       );
     }
+
+    console.log(`✅ Filtered to ${this.filteredTournaments.length} tournaments`);
+    console.log('🎯 Filtered tournaments:', this.filteredTournaments.map(t => `${t.name} (${t.type})`));
   }
 
   // Show/hide My Tournaments button based on authentication
@@ -897,29 +940,47 @@ class TournamentManager {
   // Display tournaments in the UI
   displayTournaments() {
     const container = document.getElementById('tournamentsContainer');
-    if (!container) return;
+    if (!container) {
+      console.error('❌ Tournament container not found!');
+      return;
+    }
 
     container.innerHTML = '';
 
     // Use filtered tournaments for display
     const tournamentsToShow = this.filteredTournaments;
 
+    console.log(`🎮 Displaying ${tournamentsToShow.length} tournaments (filter: ${this.currentFilter})`);
+    console.log('🎯 Tournaments to show:', tournamentsToShow.map(t => `${t.name} (${t.status}, joinable: ${t.isJoinable})`));
+
     if (tournamentsToShow.length === 0) {
       const filterText = this.currentFilter === 'all' ? 'tournaments' : `${this.currentFilter} tournaments`;
+      console.log(`⚠️ No tournaments to display for filter: ${this.currentFilter}`);
       container.innerHTML = `
         <div class="empty-state">
           <i class="fas fa-trophy" style="font-size: 48px; color: var(--primary); margin-bottom: 20px;"></i>
           <h3>No Active ${this.currentFilter === 'all' ? 'Tournaments' : this.currentFilter.charAt(0).toUpperCase() + this.currentFilter.slice(1) + ' Tournaments'}</h3>
           <p>Check back soon for epic trading battles!</p>
+          <button class="btn btn-primary" onclick="tournamentManager.loadTournaments()">
+            <i class="fas fa-sync-alt"></i> Refresh Tournaments
+          </button>
         </div>
       `;
       return;
     }
 
-    tournamentsToShow.forEach(tournament => {
-      const tournamentCard = this.createTournamentCard(tournament);
-      container.appendChild(tournamentCard);
+    tournamentsToShow.forEach((tournament, index) => {
+      console.log(`🏗️ Creating card ${index + 1}: ${tournament.name}`);
+      try {
+        const tournamentCard = this.createTournamentCard(tournament);
+        container.appendChild(tournamentCard);
+        console.log(`✅ Card ${index + 1} created successfully`);
+      } catch (error) {
+        console.error(`❌ Error creating card ${index + 1}:`, error);
+      }
     });
+
+    console.log(`✅ Successfully displayed ${tournamentsToShow.length} tournament cards`);
   }
 
   // Create tournament card element
@@ -2444,6 +2505,105 @@ class TournamentManager {
     return num.toFixed(2);
   }
 
+  // Update tournament availability indicator
+  updateTournamentAvailabilityIndicator(stats) {
+    const indicator = document.getElementById('tournamentAvailabilityIndicator');
+    if (!indicator) return;
+
+    const joinableCount = stats.joinable || 0;
+    const activeCount = stats.active || 0;
+    const upcomingCount = stats.upcoming || 0;
+    const totalCount = stats.total || 0;
+
+    let statusClass = 'good';
+    let statusText = `${joinableCount} Available`;
+    let statusIcon = 'fas fa-check-circle';
+
+    if (joinableCount === 0) {
+      statusClass = 'warning';
+      statusText = totalCount > 0 ? 'Tournaments Full' : 'Creating Tournaments...';
+      statusIcon = totalCount > 0 ? 'fas fa-users' : 'fas fa-cog fa-spin';
+    } else if (joinableCount === 1) {
+      statusClass = 'caution';
+      statusText = `${joinableCount} Available`;
+      statusIcon = 'fas fa-clock';
+    } else if (joinableCount >= 5) {
+      statusClass = 'excellent';
+      statusText = `${joinableCount} Available`;
+      statusIcon = 'fas fa-star';
+    }
+
+    // Add more detailed status information
+    let detailText = `${activeCount} Active • ${upcomingCount} Upcoming`;
+    if (totalCount > 0 && joinableCount === 0) {
+      detailText += ` • All tournaments full`;
+    }
+
+    indicator.innerHTML = `
+      <i class="${statusIcon}"></i>
+      <span>${statusText}</span>
+      <small>${detailText}</small>
+    `;
+    indicator.className = `availability-indicator ${statusClass}`;
+
+    // Auto-refresh if no tournaments are available
+    if (joinableCount === 0 && totalCount === 0) {
+      console.log('🔄 No tournaments available, will auto-refresh in 10 seconds...');
+      setTimeout(() => {
+        this.loadTournaments();
+      }, 10000);
+    }
+  }
+
+  // Trigger emergency tournament creation
+  async triggerEmergencyTournamentCreation() {
+    try {
+      console.log('🚨 Triggering emergency tournament creation...');
+
+      // Try the new debug endpoint first
+      let response = await fetch('/api/tournaments/debug/force-create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      // Fallback to schedule endpoint if debug endpoint fails
+      if (!response.ok) {
+        console.log('🔄 Debug endpoint failed, trying schedule endpoint...');
+        response = await fetch('/api/tournaments/schedule', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            action: 'ensure_availability'
+          })
+        });
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        console.log('✅ Emergency tournaments created:', result);
+
+        // Show immediate feedback
+        safeShowNotification('New tournaments are being created!', 'info');
+
+        // Reload tournaments after a short delay
+        setTimeout(() => {
+          this.loadTournaments();
+        }, 3000);
+      } else {
+        console.error('❌ Emergency creation failed:', result);
+        safeShowNotification('Failed to create tournaments. Please refresh the page.', 'error');
+      }
+    } catch (error) {
+      console.error('❌ Error triggering emergency tournament creation:', error);
+      safeShowNotification('Connection error. Please check your internet and refresh.', 'error');
+    }
+  }
+
   // Setup event listeners
   setupEventListeners() {
     // Refresh tournaments button
@@ -2461,6 +2621,11 @@ class TournamentManager {
         this.createInstantTournament();
       });
     }
+
+    // Auto-refresh tournaments every 30 seconds to maintain availability
+    setInterval(() => {
+      this.loadTournaments();
+    }, 30000);
 
     // Keep WebSocket alive with ping
     setInterval(() => {

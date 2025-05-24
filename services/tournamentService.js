@@ -412,77 +412,12 @@ class TournamentService {
     }
   }
 
-  // Setup cron jobs for tournament management
+  // Setup cron jobs for tournament management - DISABLED
+  // Note: Tournament scheduling is now handled by TournamentScheduler service
   setupCronJobs() {
-    // Check for tournaments to start every minute
-    cron.schedule('* * * * *', async () => {
-      try {
-        const tournamentsToStart = await prisma.tournament.findMany({
-          where: {
-            status: 'UPCOMING',
-            startTime: {
-              lte: new Date()
-            }
-          }
-        });
-
-        for (const tournament of tournamentsToStart) {
-          await this.startTournament(tournament.id);
-        }
-      } catch (error) {
-        console.error('❌ Error in start tournament cron:', error.message);
-      }
-    });
-
-    // Check for tournaments to end every minute
-    cron.schedule('* * * * *', async () => {
-      try {
-        const tournamentsToEnd = await prisma.tournament.findMany({
-          where: {
-            status: 'ACTIVE',
-            endTime: {
-              lte: new Date()
-            }
-          }
-        });
-
-        for (const tournament of tournamentsToEnd) {
-          await this.endTournament(tournament.id);
-        }
-      } catch (error) {
-        console.error('❌ Error in end tournament cron:', error.message);
-      }
-    });
-
-    // Create daily tournaments at midnight UTC
-    cron.schedule('0 0 * * *', async () => {
-      try {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        tomorrow.setHours(12, 0, 0, 0); // Start at noon UTC
-
-        const endTime = new Date(tomorrow);
-        endTime.setHours(36, 0, 0, 0); // 24 hour duration
-
-        await this.createTournament({
-          name: `Daily Galactic Championship - ${tomorrow.toDateString()}`,
-          description: 'Epic 24-hour trading battle with real Solana tokens!',
-          type: 'DAILY',
-          entryFeeSol: 0.01,
-          entryFeeSwars: 100,
-          maxParticipants: 1000,
-          startTime: tomorrow,
-          endTime: endTime,
-          tokenCount: 8
-        });
-
-        console.log('🎯 Created daily tournament for tomorrow');
-      } catch (error) {
-        console.error('❌ Error creating daily tournament:', error.message);
-      }
-    });
-
-    console.log('⏰ Tournament cron jobs initialized');
+    console.log('⏰ Tournament cron jobs disabled - using TournamentScheduler instead');
+    // All tournament scheduling is now handled by the TournamentScheduler service
+    // to avoid conflicts and ensure continuous availability
   }
 }
 

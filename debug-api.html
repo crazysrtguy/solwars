@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Tournament API</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #fff; }
+        .result { background: #2a2a2a; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .error { background: #4a1a1a; border: 1px solid #ff4444; }
+        .success { background: #1a4a1a; border: 1px solid #44ff44; }
+        button { padding: 10px 20px; margin: 5px; background: #0066cc; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0088ff; }
+        pre { white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Tournament API Debug Tool</h1>
+    <p>This tool will help us debug why tournaments aren't showing up.</p>
+    
+    <button onclick="testTournamentAPI()">Test /api/tournaments</button>
+    <button onclick="testTrendingAPI()">Test /api/tokens/trending</button>
+    <button onclick="testPricesAPI()">Test /api/prices/current</button>
+    <button onclick="clearResults()">Clear Results</button>
+    
+    <div id="results"></div>
+
+    <script>
+        async function testTournamentAPI() {
+            addResult('🏆 Testing /api/tournaments...', 'info');
+            
+            try {
+                const response = await fetch('/api/tournaments');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    addResult(`✅ API Response (${response.status}):`, 'success');
+                    addResult(JSON.stringify(data, null, 2), 'success');
+                    
+                    // Analyze the data
+                    if (Array.isArray(data)) {
+                        addResult(`📊 Legacy format: ${data.length} tournaments`, 'info');
+                    } else if (data.tournaments) {
+                        addResult(`📊 Enhanced format: ${data.tournaments.length} tournaments`, 'info');
+                        addResult(`📈 Stats: ${JSON.stringify(data.stats)}`, 'info');
+                        addResult(`📂 Categories: Active=${data.categories.active?.length || 0}, Upcoming=${data.categories.upcoming?.length || 0}, Joinable=${data.categories.joinable?.length || 0}`, 'info');
+                    } else {
+                        addResult('❌ Unexpected response format!', 'error');
+                    }
+                } else {
+                    addResult(`❌ API Error (${response.status}): ${response.statusText}`, 'error');
+                    addResult(JSON.stringify(data, null, 2), 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Network Error: ${error.message}`, 'error');
+                console.error('Tournament API Error:', error);
+            }
+        }
+
+        async function testTrendingAPI() {
+            addResult('🔥 Testing /api/tokens/trending...', 'info');
+            
+            try {
+                const response = await fetch('/api/tokens/trending');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    addResult(`✅ Trending API Response (${response.status}):`, 'success');
+                    addResult(`Found ${data.length} trending tokens`, 'success');
+                    addResult(JSON.stringify(data.slice(0, 3), null, 2), 'success'); // Show first 3
+                } else {
+                    addResult(`❌ Trending API Error (${response.status}): ${response.statusText}`, 'error');
+                    addResult(JSON.stringify(data, null, 2), 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Trending API Network Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testPricesAPI() {
+            addResult('💰 Testing /api/prices/current...', 'info');
+            
+            try {
+                const response = await fetch('/api/prices/current');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    addResult(`✅ Prices API Response (${response.status}):`, 'success');
+                    addResult(`Found prices for ${Object.keys(data).length} tokens`, 'success');
+                    
+                    // Show first few prices
+                    const firstFew = Object.entries(data).slice(0, 3);
+                    firstFew.forEach(([address, priceData]) => {
+                        addResult(`${address.substring(0, 8)}...: $${priceData.price}`, 'success');
+                    });
+                } else {
+                    addResult(`❌ Prices API Error (${response.status}): ${response.statusText}`, 'error');
+                    addResult(JSON.stringify(data, null, 2), 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Prices API Network Error: ${error.message}`, 'error');
+            }
+        }
+
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            
+            if (typeof message === 'object') {
+                div.innerHTML = `<pre>${JSON.stringify(message, null, 2)}</pre>`;
+            } else {
+                div.innerHTML = `<pre>${message}</pre>`;
+            }
+            
+            results.appendChild(div);
+            results.scrollTop = results.scrollHeight;
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        // Auto-test on load
+        window.onload = function() {
+            addResult('🚀 Debug tool loaded. Click buttons to test APIs.', 'info');
+            
+            // Auto-test the tournament API
+            setTimeout(testTournamentAPI, 1000);
+        };
+    </script>
+</body>
+</html>

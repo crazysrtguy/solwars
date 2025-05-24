@@ -280,15 +280,46 @@ app.get('/api/tournaments/user/:walletAddress', async (req, res) => {
   }
 });
 
-// Get active tournaments
+// Get active tournaments with enhanced stats
 app.get('/api/tournaments', async (req, res) => {
   try {
     console.log('🏆 Fetching active tournaments...');
     const tournaments = await tournamentService.getActiveTournaments();
-    res.json(tournaments);
+
+    // Calculate stats for the availability indicator
+    const activeTournaments = tournaments.filter(t => t.status === 'ACTIVE');
+    const upcomingTournaments = tournaments.filter(t => t.status === 'UPCOMING');
+    const joinableTournaments = tournaments.filter(t =>
+      t.status === 'UPCOMING' ||
+      (t.status === 'ACTIVE' && t.participantCount < t.maxParticipants)
+    );
+
+    const response = {
+      tournaments,
+      categories: {
+        active: activeTournaments,
+        upcoming: upcomingTournaments,
+        joinable: joinableTournaments
+      },
+      stats: {
+        total: tournaments.length,
+        active: activeTournaments.length,
+        upcoming: upcomingTournaments.length,
+        joinable: joinableTournaments.length
+      },
+      message: `Found ${tournaments.length} tournaments (${joinableTournaments.length} joinable)`
+    };
+
+    console.log(`📊 Tournament Stats: ${response.stats.total} total, ${response.stats.active} active, ${response.stats.upcoming} upcoming, ${response.stats.joinable} joinable`);
+    res.json(response);
   } catch (error) {
     console.error('❌ Error fetching tournaments:', error);
-    res.status(500).json({ error: 'Server error fetching tournaments' });
+    res.status(500).json({
+      error: 'Server error fetching tournaments',
+      tournaments: [],
+      categories: { active: [], upcoming: [], joinable: [] },
+      stats: { total: 0, active: 0, upcoming: 0, joinable: 0 }
+    });
   }
 });
 
@@ -439,6 +470,92 @@ app.post('/api/tournaments/create-instant', async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to create instant tournament'
+    });
+  }
+});
+
+// Debug endpoint to check scheduler status and force tournament creation
+app.get('/api/tournaments/debug/scheduler', async (req, res) => {
+  try {
+    console.log('🔍 Checking tournament scheduler status...');
+
+    // Check current tournaments in database
+    const tournaments = await prisma.tournament.findMany({
+      where: {
+        status: {
+          in: ['UPCOMING', 'ACTIVE']
+        }
+      },
+      orderBy: { startTime: 'asc' }
+    });
+
+    // Check scheduler status
+    const schedulerStatus = {
+      isRunning: tournamentScheduler.isRunning,
+      scheduledJobs: tournamentScheduler.scheduledJobs.size,
+      jobNames: Array.from(tournamentScheduler.scheduledJobs.keys())
+    };
+
+    res.json({
+      success: true,
+      scheduler: schedulerStatus,
+      tournaments: {
+        total: tournaments.length,
+        active: tournaments.filter(t => t.status === 'ACTIVE').length,
+        upcoming: tournaments.filter(t => t.status === 'UPCOMING').length,
+        list: tournaments.map(t => ({
+          id: t.id,
+          name: t.name,
+          type: t.type,
+          status: t.status,
+          startTime: t.startTime,
+          endTime: t.endTime,
+          participantCount: 0 // Will be filled by join query if needed
+        }))
+      },
+      message: 'Tournament scheduler debug info'
+    });
+  } catch (error) {
+    console.error('❌ Error checking scheduler status:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Force tournament creation endpoint
+app.post('/api/tournaments/debug/force-create', async (req, res) => {
+  try {
+    console.log('🔧 Force creating tournaments...');
+
+    // Force the scheduler to ensure tournament availability
+    await tournamentScheduler.ensureTournamentAvailability();
+
+    // Get updated tournament list
+    const tournaments = await prisma.tournament.findMany({
+      where: {
+        status: {
+          in: ['UPCOMING', 'ACTIVE']
+        }
+      },
+      orderBy: { startTime: 'asc' }
+    });
+
+    res.json({
+      success: true,
+      message: 'Forced tournament creation completed',
+      tournaments: {
+        total: tournaments.length,
+        active: tournaments.filter(t => t.status === 'ACTIVE').length,
+        upcoming: tournaments.filter(t => t.status === 'UPCOMING').length
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error forcing tournament creation:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });
